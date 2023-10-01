@@ -22,9 +22,9 @@ rebuild_entrez <- F
 restrict_species_bioc <- F
 
 #### SET THE TARGET FOLDER FOR ALL FILES FROM PANTHER USED FOR db BUILDING ####
-home_folder <- file.path("/home/jmueller/pCloudDrive/workspace/PANTHER.db/inst/extdata")#"/home/stimpsky/pCloudDrive/workspace/PANTHER.db/inst/extdata/"#thats where the sql db goes
-panther_folder <- "/home/jmueller/pCloudDrive/workspace/PANTHER/src"#"C:/tmp/PANTHER/src"#temporary folder for downloaded files
-schema.text <- paste(read.delim(file.path("/home/jmueller/pCloudDrive/workspace/jumu_rscripts/PANTHER.db","PANTHER_DB.sql"),stringsAsFactors=F)[,1],collapse="\n")
+home_folder <- file.path("PANTHER.db/inst/extdata")"#thats where the sql db goes
+panther_folder <- "PANTHER/src"#"C:/tmp/PANTHER/src"#temporary folder for downloaded files
+schema.text <- paste(read.delim(file.path("PANTHER.db","PANTHER_DB.sql"),stringsAsFactors=F)[,1],collapse="\n")
 ### ###
 
 
@@ -576,7 +576,7 @@ if(rebuild_entrez){
   # nlen <- length(unique(data_uniprot$uniprot_id))
   # dx <- data_uniprot
   # dx$Lx <- cut(1:nlen,breaks = round(seq(1,nlen,length.out = 15)),labels = LETTERS[1:14],include.lowest = T)
-  # for(mychunk in levels(dx$Lx))write.csv( dx$uniprot_id[dx$Lx==mychunk],file.path("/home/stimpsky/pCloudDrive",sprintf("test_%s.txt",mychunk)),quote = F,row.names = F,col.names = F)
+  # for(mychunk in levels(dx$Lx))write.csv( dx$uniprot_id[dx$Lx==mychunk],file.path("....",sprintf("test_%s.txt",mychunk)),quote = F,row.names = F,col.names = F)
 
   entrez_list <- vector("list")
   tstart <- Sys.time()
