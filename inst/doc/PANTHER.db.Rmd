@@ -9,7 +9,7 @@ output:
 package: PANTHER.db
 vignette: >
   %\VignetteIndexEntry{PANTHER.db: An annotation package to access the PANTHER Classification System}
-  %\VignetteDepends{AnnotationDbi, AnnotationHub}
+  %\VignetteDepends{AnnotationDbi, AnnotationHub, BiocStyle}
   %\VignetteKeywords{annotation, database}
   %\VignettePackage{PANTHER.db}
   %\VignetteEngine{knitr::rmarkdown}

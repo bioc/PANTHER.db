@@ -1,13 +1,13 @@
 Package: PANTHER.db
 Title: A set of annotation maps describing the entire PANTHER Gene Ontology
 Description: A set of annotation maps describing the entire Gene Ontology assembled using data from PANTHER.
-Version: 1.0.10
-Author: Julius Muller
-Maintainer:Julius Muller <mail@jmuller.eu>
+Version: 1.0.12
+Authors@R: 
+        person("Julius", "Muller", role = c("aut", "cre"), email = "mail@jmuller.eu", comment = c(ORCID = "0000-0002-1046-2968"))
 Imports: BiocFileCache (>= 1.10.1)
 Depends: AnnotationDbi,AnnotationHub,utils,methods,RSQLite
 Suggests: RUnit,knitr,BiocStyle,rmarkdown
 License: Artistic-2.0
-biocViews: AnnotationHub, Annotation, Infrastructure
-Packaged: 2019-10-15; jmuller
+biocViews: FunctionalAnnotation,AnnotationHub,AnnotationData
+Packaged: 2023-09-22; jmuller
 VignetteBuilder: knitr
