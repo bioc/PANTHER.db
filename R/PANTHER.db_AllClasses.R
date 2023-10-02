@@ -8,29 +8,22 @@
       if(!nspec %in% unlist(strsplit(.allPthOrganisms,"|",fixed=T)))stop(paste0("Organisms must be one of the following:\n",.allPthOrganisms))
       if(.allPthOrganisms==nspec)return()
       .pthOrganisms <<- nspec
+      alltabs <- dbListTables(.self$conn)
+      exisiting_filt <- grep("_filt$",alltabs,v=T)
 
-      fvws <- dbGetQuery(conn, "SELECT name from sqlite_temp_master WHERE type='table' and name like '%_filtv'")[,1]
-      if(length(fvws)){
-        for(ftab in fvws)dbExecute(.self$conn, sprintf("DROP TABLE %s",ftab))
-        .core_tabs <<- gsub("_filtv","",.core_tabs)
+      if(length(exisiting_filt)){
+        for(ftab in exisiting_filt)dbExecute(.self$conn, sprintf("DROP VIEW %s",ftab))
+        .core_tabs <<- gsub("_filt","",.core_tabs)
       }
+      .ref_table <<- "panther_families_filt"
+      .core_tabs <<- paste0(.core_tabs,"_filt")
 
-      # an old, cached annotationhub object might still contain "_filt" tables instead of temp views. Use of read only connection in new PANTHER.db version prevents dropping tables. AnnotationHub cache would have to be refreshed. As workaround, temp views are called "_filtv". This can be safely removed in future version  --->
-      #ftbls <- dbGetQuery(conn, "SELECT name from sqlite_master WHERE type='table' and name like '%_filt'")[,1]
-      #if(length(ftbls)){
-      #  for(ftab in ftbls)dbExecute(.self$conn, sprintf("DROP TABLE %s",ftab))
-      #  .core_tabs <<- gsub("_filt","",.core_tabs)
-      #}
-      # <---
+      dbExecute(.self$conn, sprintf("CREATE TEMP VIEW uniprot_filt AS SELECT * FROM uniprot WHERE species='%s'",.pthOrganisms))
+      dbExecute(.self$conn, sprintf("CREATE TEMP VIEW entrez_filt AS SELECT * FROM entrez WHERE species='%s'",.pthOrganisms))
+      dbExecute(.self$conn, sprintf("CREATE TEMP VIEW %s AS SELECT _id,family_id,family_term,subfamily_term FROM panther_families NATURAL JOIN uniprot_filt",.ref_table))
+      alltabs <- dbListTables(.self$conn)
 
-      .ref_table <<- "panther_families_filtv"
-      .core_tabs <<- paste0(.core_tabs,"_filtv")
-
-      dbExecute(.self$conn, sprintf("CREATE TEMP TABLE uniprot_filtv AS SELECT * FROM uniprot WHERE species='%s'",.pthOrganisms))
-      dbExecute(.self$conn, sprintf("CREATE TEMP TABLE entrez_filtv AS SELECT * FROM entrez WHERE species='%s'",.pthOrganisms))
-      dbExecute(.self$conn, sprintf("CREATE TEMP TABLE %s AS SELECT _id,family_id,family_term,subfamily_term FROM panther_families NATURAL JOIN uniprot_filtv",.ref_table))
-
-      for(mtab in setdiff(.core_tabs,c(.ref_table,"uniprot_filtv","entrez_filtv")))dbExecute(.self$conn, sprintf("CREATE TEMP TABLE %s AS SELECT * FROM %s WHERE _id in (SELECT _id from %s)",mtab,sub("_filtv$","",mtab),.ref_table))
+      for(mtab in setdiff(.core_tabs,c(.ref_table,"uniprot_filt","entrez_filt")))dbExecute(.self$conn, sprintf("CREATE TEMP VIEW %s AS SELECT * FROM %s WHERE _id in (SELECT _id from %s)",mtab,sub("_filt$","",mtab),.ref_table))
 
       .user_filter <<- T
 
