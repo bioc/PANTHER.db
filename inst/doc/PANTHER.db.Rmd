@@ -2,25 +2,33 @@
 title: "PANTHER.db vignette"
 subtitle: "PANTHER.db: An annotation package to access the PANTHER Classification System"
 author: "Julius Muller"
-date: "`r Sys.Date()`"
+date: "`r BiocStyle::doc_date()`"
+package: "`r BiocStyle::pkg_ver('PANTHER.db')`"
 output:
   BiocStyle::html_document:
     toc: false
-package: PANTHER.db
 vignette: >
   %\VignetteIndexEntry{PANTHER.db: An annotation package to access the PANTHER Classification System}
-  %\VignetteDepends{AnnotationDbi, AnnotationHub, BiocStyle}
+  %\VignetteDepends{AnnotationDbi, AnnotationHub}
   %\VignetteKeywords{annotation, database}
   %\VignettePackage{PANTHER.db}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r vignetteSetup, echo=FALSE, message=FALSE, warning = FALSE}
+library("BiocStyle")
+```
+
 # Introduction to `PANTHER.db` {-}
 
-The `r Biocpkg("PANTHER.db")` package provides a `select` interface to the compiled PANTHER ontology residing within a SQLite database.
+The `r Biocannopkg("PANTHER.db")` package provides a `select` interface to the compiled PANTHER ontology residing within a SQLite database.
 
-`PANTHER.db` can be installed from Bioconductor using
+This update uses PANTHER 19.0 and pathway associations 3.6.8. Entrez mappings
+reuse the UniProt-to-Entrez snapshot downloaded on 2023-09-20. Source releases,
+the mapping snapshot date, and checksums are recorded in the database metadata.
+
+`r Biocannopkg("PANTHER.db")` can be installed from Bioconductor using
 ```{r, eval = FALSE}
 if (!requireNamespace("BiocManager")) install.packages("BiocManager")
 BiocManager::install("PANTHER.db")
@@ -35,7 +43,7 @@ ah <- AnnotationHub()
 query(ah, "PANTHER.db")[[1]]
 ```
 
-Finally `PANTHER.db` can be loaded with
+Finally `r Biocannopkg("PANTHER.db")` can be loaded with
 
 ```{r, eval = TRUE, message=FALSE, warning=FALSE}
 library(PANTHER.db)
@@ -49,14 +57,14 @@ help page.
 help("PANTHER.db")
 ```
 
-When you load the `PANTHER.db` package, it creates a `PANTHER.db` object.  If you look at the object you will see
+When you load the `r Biocannopkg("PANTHER.db")` package, it creates a `r Biocannopkg("PANTHER.db")` object.  If you look at the object you will see
 some helpful information about it.
 
 ```{r, eval = TRUE}
 PANTHER.db
 ```
 
-By default, you can see that the `PANTHER.db` object is set to
+By default, you can see that the `r Biocannopkg("PANTHER.db")` object is set to
 retrieve records from the various organisms supported by http://pantherdb.org.
 Methods are provided to restrict all queries to a specific organism.
 In order to change it, you first need to look up the appropriate organism
@@ -71,7 +79,7 @@ availablePthOrganisms(PANTHER.db)[1:5,]
 ```
 
 Once you have learned the PANTHER organism name for the organism of interest, you
-can then change the organism for the `PANTHER.db` object:
+can then change the organism for the `r Biocannopkg("PANTHER.db")` object:
 
 ```{r, eval = TRUE}
 pthOrganisms(PANTHER.db) <- "HUMAN"

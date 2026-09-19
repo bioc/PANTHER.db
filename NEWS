@@ -1,4 +1,32 @@
 
+Changes in version 1.0.13:
+
+USER VISIBLE CHANGES
+
+    o   Update annotations to PANTHER 19.0 and pathways 3.6.8, preserving
+        the SQLite schema and exported query API.
+    o   Host the versioned SQLite resource on Zenodo under DOI
+        10.5281/zenodo.22729518; AnnotationHub continues to provide discovery,
+        download and local caching as resource AH122304.
+    o   Reuse the maintainer's UniProt-to-Entrez mapping snapshot from
+        2023-09-20; the historical file's UniProt release was not recorded.
+    o   Correct organism assignment in the shared green_algae source file:
+        CHLRE and KLENI proteins are now assigned from each record's species ID.
+    o   Include all 144 source organisms, including ENTH1 and XENLA.
+        Upstream BRACM and TRIV3 replace BRARP and TRIVA with different
+        taxonomy IDs. Preserve the ASHGO package key for renamed EREGS
+        because its taxonomy ID remains 284811.
+    o   Correct genome-source metadata, preserve complete UniProt accessions,
+        and check all downloads against recorded checksums.
+    o   Update offline test references from independent v19 sources.
+        Retain separate raw and ontology-normalized live API comparisons.
+
+BUILD CHANGES
+
+    o   Replace obsolete FTP/HTML acquisition with checked HTTPS sources.
+        Speed up large joins and ontology traversal without changing the schema.
+    o   Build a separate candidate database; do not overwrite previous releases.
+
 Changes in version 1.0.12:
 
 USER VISIBLE CHANGES
@@ -61,5 +89,3 @@ USER VISIBLE CHANGES
     o   fixed a file permission bug
     o   select queries will now return outer joins instead of inner joints i.e. incomplete results are allowed
     o   species pre selection will strictly limit information from joined tables to information related to the selected species.
-
-

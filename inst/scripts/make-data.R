@@ -1,259 +1,45 @@
-
-library(tidyverse)
-library(RCurl)
-library(R.utils)
+# Build PANTHER 19 using the existing PANTHER_DB schema.
+# Rscript build_sqlite_denorm_v19.0.R --download-only
+# Rscript build_sqlite_denorm_v19.0.R
+library(data.table)
 library(RSQLite)
-library(UniProt.ws)
-library(AnnotationDbi)
-library(httr)
 library(jsonlite)
-
-#### Functions to build the sqlite DB for Package PANTHER.db ####
-# Generated for PANTHER version 18.0
-# All source files are from the ftp at ftp://ftp.pantherdb.org//
 build_start <- Sys.time()
-panther.v <- "18.0"
-pantherhmm.v <- "18.0" # this version seems to be different compared to the general PNATHER db version at times
-pantherd.v <- "18.0" # class files on http, version independent
-pantherseq.v <- "18.0" # this version seems to be different compared to the general PNATHER db version at times
-pantherc.v <- "3.6.7"
-rebuild_panther <- F
-rebuild_entrez <- F
-restrict_species_bioc <- F
-
-#### SET THE TARGET FOLDER FOR ALL FILES FROM PANTHER USED FOR db BUILDING ####
-home_folder <- file.path("PANTHER.db/inst/extdata")"#thats where the sql db goes
-panther_folder <- "PANTHER/src"#"C:/tmp/PANTHER/src"#temporary folder for downloaded files
-schema.text <- paste(read.delim(file.path("PANTHER.db","PANTHER_DB.sql"),stringsAsFactors=F)[,1],collapse="\n")
-### ###
-
-
-#### Use species names supported by AnnotationDb ####
-#species present in AnnotationDb
-list.files(system.file("DBschemas",package="AnnotationDbi"))
-bioc_sql <- list.files(system.file("DBschemas/schemas_2.1",package="AnnotationDbi"))
-bioc_sql <- bioc_sql[grep("_DB.sql$",bioc_sql)]
-bioc_sql <- bioc_sql[grep("CHIP_DB.sql$|^KEGG_|^GO_|^INPARANOID_|^PFAM_",bioc_sql,invert=T)]
-bioc_sql.orgs <- sub("_DB.sql","",bioc_sql)
-
-
-#### Query available species ####
-
-# v17.0 -> 143 rows/ in v18 only rape was removed, otherwise identical files, but species file missing in http://data.pantherdb.org/ftp/sequence_classifications/X/species
-panther_orgs <- fromJSON(rawToChar(GET("https://www.pantherdb.org/services/oai/pantherdb/supportedgenomes")$content))$search$output$genomes$genome
-panther_orgs2 <- read_tsv("http://data.pantherdb.org/ftp/sequence_classifications/17.0/species",col_names = c("HMMSEQ_FILE_SUFFIX","Short.Name","UP","NCBI.Taxon.Id")) %>% dplyr::select(c(1,3,4))
-if(!"HMMSEQ_FILE_SUFFIX" %in% colnames(panther_orgs))panther_orgs <- panther_orgs %>% left_join(panther_orgs2, by = join_by("taxon_id" == "NCBI.Taxon.Id"))
-# throwing away entamoeba with NCBI.Taxon.Id=  294381, as the sequence_classifications file states NCBI.Taxon.Id =5759
-panther_orgs <- panther_orgs[!is.na(panther_orgs$HMMSEQ_FILE_SUFFIX),]
-
-# translate PANTHER org names to AnnotationDb names
-p2b <- setNames(bioc_sql.orgs,c('ANOGA','ARATH','BOVIN','CANLF','CHICK','PANTR','STRCO','ECOLI','DROME','HUMAN','PLAF7','MOUSE','PIG','RAT','MACMU','CAEEL','XENTR','YEAST','DANRE'))
-
-species_df <- data.frame(PANTHER_SPECIES_ID=panther_orgs$short_name, PANTHER_Full=panther_orgs$long_name, Bioconductor=panther_orgs$short_name, HMMSEQ_FILE_SUFFIX=panther_orgs$HMMSEQ_FILE_SUFFIX, GENOME_SOURCE=NA, GENOME_DATE=NA, row.names = panther_orgs$short_name, stringsAsFactors=F)
-species_df[names(p2b),"Bioconductor"] <- p2b
-
-
-# fetch common name required for hmm files
-# should start with
-# "    <td class=tableheaderline title=The number of PANTHER protein class annotations of genes; note that one gene can be annotated to more than one PANTHER protein class term># of Protein Class annotations</td> "
-mres <- read.delim("http://pantherdb.org/panther/summaryStats.jsp", skip=169, stringsAsFactors=F)[,1]
-mc <- 1
-while(mc<=length(mres)){
-  if(!grepl(".*<tr bgcolor",mres[[mc]])){
-    mc <- mc+1
-    next()
-  }
-  cname <- gsub(".* nowrap>|</td>","",mres[[mc+2]])
-  sname <- gsub(".* nowrap>|</td>","",mres[[mc+3]])
-  gsource <- gsub(".* nowrap>|</td>","",mres[[mc+4]])
-  gdate <- gsub(".* nowrap>|</td>","",mres[[mc+5]])
-  if(!sname%in%species_df$PANTHER_SPECIES_ID){
-    mc <- mc+1
-    warning(sprintf("Species %s not in list of species!", sname))
-    next()
-  }
-  species_df[sname,c("GENOME_SOURCE","GENOME_DATE")] <- c(gsource, gdate)
-  mc <- mc+5
-}
-
-
-# fetch uniprot species ids
-up_mnem <- read.delim("https://www.uniprot.org/docs/speclist.txt", stringsAsFactors=F, skip=58)[,1]
-up_mnem <- strsplit(up_mnem[grep("^[A-Z0-9]",up_mnem)],":")
-up_mnem <- up_mnem[lengths(up_mnem)==2]
-up_mnems <- strsplit(sapply(up_mnem,"[[",1)," +")
-names(up_mnems) <- sub("^ N=","",sapply(up_mnem,"[[",2))
-up_mnems <- up_mnems[lengths(up_mnems)==3]
-up_mnemsc <- setNames(as.integer(sapply(up_mnems,"[[",3)),sapply(up_mnems,"[[",1))
-up_spec <- setNames(names(up_mnems),sapply(up_mnems,"[[",1))
-
-species_df$UNIPROT_MNEMONIC <- species_df$PANTHER_SPECIES_ID
-
-# # BRAJA, CANFA and PYRKO are old mnemonics used by PANTHER v11.1, will be fixed in v12. BRAJA refers to a different organism!!
-# species_df[species_df$UNIPROT_MNEMONIC=="CANFA","UNIPROT_MNEMONIC"] <- "CANLF"
-# species_df[species_df$UNIPROT_MNEMONIC=="PYRKO","UNIPROT_MNEMONIC"] <- "THEKO"
-# species_df[species_df$UNIPROT_MNEMONIC=="BRAJA","UNIPROT_MNEMONIC"] <- "BRADU"
-
-#species_df[species_df$UNIPROT_MNEMONIC=="SULSO","UNIPROT_MNEMONIC"] <- "SACSO" # now SACS2
-species_df$UNIPROT_SPECIES <- up_mnemsc[species_df$UNIPROT_MNEMONIC]
-species_df$UNIPROT_SPECIES_NAME <- up_spec[species_df$UNIPROT_MNEMONIC]
-species_df <- species_df[species_df$UNIPROT_MNEMONIC!="ENTH1",]
-if(restrict_species_bioc)species_df <- species_df[species_df$Bioconductor%in%bioc_sql.orgs,]
-
-# 5 name typos in v14! fixed with dedicated species file in top directory with v16
-# species_df$HMMSEQ_FILE_SUFFIX[species_df$HMMSEQ_FILE_SUFFIX=="yellow monkey flower"] <- "yellow_monkey_flower"
-# species_df$HMMSEQ_FILE_SUFFIX[species_df$HMMSEQ_FILE_SUFFIX=="barrel medic"] <- "barrel_medic"
-# species_df$HMMSEQ_FILE_SUFFIX[species_df$HMMSEQ_FILE_SUFFIX=="date palm"] <- "date_palm"
-# species_df$HMMSEQ_FILE_SUFFIX[species_df$PANTHER_SPECIES_ID=="EMENI"] <- "aspergillus_nidulans"
-# species_df$HMMSEQ_FILE_SUFFIX[species_df$PANTHER_SPECIES_ID=="ASPFU"] <- "aspergillus_fumigata"
-
-species_df$HMMSEQ_FILE_SUFFIX[species_df$PANTHER_SPECIES_ID=="BRANA"] <- "canola"
-species_df$HMMSEQ_FILE_SUFFIX[species_df$PANTHER_SPECIES_ID=="KLENI"] <- "green_algae"
-# filenames.seq <- c('PTHR18.0_green_algae')
-#
-### ###
-
-
-#species IDs: bioconductor species id, panther species ID , hmm sequence filename suffix, internal taxonomy file, uniprot taxonomy id
-# species_df <- data.frame(
-#   Bioconductor=c('ANOPHELES','ARABIDOPSIS','BOVINE','CANINE','CHICKEN','CHIMP','COELICOLOR','ECOLI','FLY','HUMAN','MALARIA','MOUSE','PIG','RAT','RHESUS','WORM','XENOPUS','YEAST','ZEBRAFISH','CRYNJ'),
-#   PANTHER_SPECIES_ID=c('ANOGA','ARATH','BOVIN','CANFA','CHICK','PANTR','STRCO','ECOLI','DROME','HUMAN','PLAFA','MOUSE','PIG','RAT','MACMU','CAEEL','XENTR','YEAST','DANRE','CRYNJ'),
-#   HMMSEQ_FILE_SUFFIX=c('mosquito','arabidopsis','cow','dog','chicken','chimpanzee','streptomyces','e_coli','fruit_fly','human','plasmodium','mouse','pig','rat','macacque','nematode_worm','frog','budding_yeast','zebrafish','cryptococcus'),
-#   PANTHER_INTERNAL=c('anopheles_gambiae','arabidopsis_thaliana','bos_taurus','canis_familiaris','gallus_gallus','pan_troglodytes','streptomyces_coelicolor','escherichia_coli','drosophila_melanogaster','homo_sapiens','plasmodium_falciparum','mus_musculus','sus_scrofa','rattus_norvegicus','macaca_mulatta','caenorhabditis_elegans','xenopus_tropicalis','saccharomyces_cerevisiae','danio_rerio','cryptococcus_neoformans'),
-#   UNIPROT_SPECIES=c(7165,3702,9913,9615,9031,9598,100226,83333,7227,9606,36329,10090,9823,10116,9544,6239,8364,559292,7955,214684),
-#   stringsAsFactors=F
-# )
-#species_df$UNIPROT_SPECIES_NAME <- sapply(species_df$UNIPROT_SPECIES,function(x){ifelse(is.na(x),NA,lookupUniprotSpeciesFromTaxId(x))})
-
-
-org_bioc2panther <- species_df$PANTHER_SPECIES_ID
-names(org_bioc2panther) <- species_df$Bioconductor
-
-org_bioc2panther_fn <- species_df$HMMSEQ_FILE_SUFFIX
-names(org_bioc2panther_fn) <- species_df$Bioconductor
-
-org_bioc2uniprot <- species_df$UNIPROT_SPECIES
-names(org_bioc2uniprot) <- species_df$Bioconductor
-
-org_bioc2uniprot_name <- species_df$UNIPROT_SPECIES_NAME
-names(org_bioc2uniprot_name) <- species_df$Bioconductor
-
-# not true after adding non AnnotationDbi species:
-# stopifnot(all(bioc_sql.orgs == species_df$Bioconductor))
-
-### ###
-
-#### WEB INTERFACE ####
-
-# uri <- 'http://www.pantherdb.org/webservices/garuda/search.jsp?keyword='
-# ids <- panther_hmm$ProteinClass[1]
-# fullUri <- paste0(uri,paste(ids, collapse="|"),'&listType=gene&type=getList')
-# read.delim(fullUri )
-# fullUri <- paste0(uri,paste(ids, collapse="+or+"),'&listType=pathway&type=getList')
-# read.delim(fullUri )
-# fullUri <- paste0(uri,paste(ids, collapse="+or+"),'&listType=family&type=getList')
-# read.delim(fullUri )
-# fullUri <- paste0(uri,paste(ids, collapse="+or+"),'&listType=category&type=getList')
-# read.delim(fullUri )
-### ###
-
-
-######## ftp download #################
-
-# Source Folders
-src.hmm <- sprintf("ftp.pantherdb.org/hmm_classifications/%s/",pantherhmm.v)
-src.pathway <- sprintf("ftp.pantherdb.org/pathway/%s/",pantherc.v)
-src.seq <- sprintf("ftp.pantherdb.org/sequence_classifications/%s/PANTHER_Sequence_Classification_files/",pantherseq.v)
-src.ortho <- sprintf("ftp.pantherdb.org/ortholog/%s/",panther.v)#not needed!
-src.class <- sprintf("http://data.pantherdb.org/PANTHER%s/ontology/Protein_Class_%s",pantherd.v,pantherd.v)
-src.class_rel <- sprintf("http://data.pantherdb.org/PANTHER%s/ontology/Protein_class_relationship",pantherd.v)
-
-# infer folder from current release to be sure to have current files, otherwise unit tests wont work
-pantherc.v_inf <- gsub(".*SequenceAssociationPathway|.txt\n.*|.txt\n.*","",getURL("ftp://ftp.pantherdb.org/pathway/current_release/",dirlistonly=T))
-pantherhmm.v_inf <- gsub(".*PANTHER|_HMM_.*","",getURL("ftp://ftp.pantherdb.org/hmm_classifications/current_release/",dirlistonly=T))
-pantherseq.v_inf <- sub("PTHR","",strsplit(getURL("ftp://ftp.pantherdb.org/sequence_classifications/current_release/PANTHER_Sequence_Classification_files/",dirlistonly=T),"_")[[1]][[1]])
-
-if(!pantherc.v_inf==pantherc.v)stop(sprintf("Wrong Pathway version %s <> %s",pantherc.v_inf, pantherc.v))
-if(!pantherhmm.v_inf==pantherhmm.v)stop(sprintf("Wrong Pathway version %s <> %s",pantherhmm.v_inf, pantherhmm.v))
-if(!pantherseq.v_inf==pantherseq.v)stop(sprintf("Wrong Pathway version %s <> %s",pantherseq.v_inf, pantherseq.v))
-
-# Target Folders
-dir.hmm <- file.path(panther_folder,src.hmm)
-dir.pathway <- file.path(panther_folder,src.pathway)
-dir.seq <- file.path(panther_folder,src.seq)
-dir.class <- sub('http:','http',file.path(panther_folder,src.class))
-dir.class_rel <- sub('http:','http',file.path(panther_folder,src.class_rel))
-dir.ortho <- file.path(panther_folder,src.ortho)
-#dir.genelookup <- file.path(panther_folder,src.lookup)
-
-#download files
-if(rebuild_panther){
-  dir.create(paste(dir.hmm, sep=.Platform$file.sep),recursive=TRUE, mode="0755")
-  dir.create(paste(dir.pathway, sep=.Platform$file.sep),recursive=TRUE, mode="0755")
-  dir.create(paste(dir.seq, sep=.Platform$file.sep),recursive=TRUE, mode="0755")
-  dir.create(paste(dir.ortho, sep=.Platform$file.sep),recursive=TRUE, mode="0755")
-  dir.create(file.path(paste(sub(sprintf("Protein_Class_%s",pantherd.v),"",sub('http:','http',dir.class),fixed=T), sep=.Platform$file.sep)),recursive=TRUE, mode="0755")
-
-  filenames.ortho <- unlist(strsplit(getURL(src.ortho, dirlistonly = TRUE), "\n|\r"));filenames.ortho <- filenames.ortho[grep("\\.gz$",filenames.ortho)]
-  filenames.hmm <- unlist(strsplit(getURL(src.hmm, dirlistonly = TRUE), "\n|\r"));filenames.hmm <- filenames.hmm[grep("_classifications$",filenames.hmm)]
-  filenames.pathway <- unlist(strsplit(getURL(src.pathway, dirlistonly = TRUE), "\n|\r"));filenames.pathway <- filenames.pathway[grep("\\.txt$",filenames.pathway)]
-  filenames.seq <- unlist(strsplit(getURL(src.seq, dirlistonly = TRUE), "\n|\r"));filenames.seq <- filenames.seq[grep("^PTHR",filenames.seq)]
-
-
-  if(!Sys.info()[["sysname"]]=="Windows"){
-    # wget -nv minimal verbosity / -nc do not overwrite on redownload / -t 3, number of retries / -T 5, timeout in seconds
-    sapply(filenames.ortho,function(fn){download.file(file.path("ftp:/",src.ortho,fn),file.path(dir.ortho,fn), cacheOK = TRUE, quiet = FALSE,method="wget",extra=c("-nv","-t 3","-nc","-T 5"))})
-    sapply(filenames.hmm,function(fn){download.file(file.path("ftp:/",src.hmm,fn),file.path(dir.hmm,fn), cacheOK = TRUE, quiet = FALSE,method="wget",extra=c("-nv","-t 3","-nc","-T 5"))})
-    sapply(filenames.pathway[grep("LICENSE|README|SequenceAssociationPathway",filenames.pathway)],function(fn){download.file(file.path("ftp:/",src.pathway,fn),file.path(dir.pathway,fn), cacheOK = TRUE, quiet = FALSE,method="wget",extra=c("-nv","-t 3","-nc","-T 5"))})
-    sapply(filenames.seq[grep(paste(na.omit(species_df$HMMSEQ_FILE_SUFFIX),collapse="|"),filenames.seq)],function(fn){if(!file.exists(file.path(dir.seq,fn)))download.file(file.path("ftp:/",src.seq,fn),file.path(dir.seq,fn), cacheOK = TRUE, quiet = FALSE,method="wget",extra=c("-nv","-t 3","-nc","-T 5"))})
-  }else{
-    sapply(filenames.ortho,function(fn){download.file(file.path("ftp:/",src.ortho,fn),file.path(dir.ortho,fn))})
-    sapply(filenames.hmm,function(fn){download.file(file.path("ftp:/",src.hmm,fn),file.path(dir.hmm,fn))})
-    sapply(filenames.pathway[grep("LICENSE|README|SequenceAssociationPathway",filenames.pathway)],function(fn){download.file(file.path("ftp:/",src.pathway,fn),file.path(dir.pathway,fn))})
-
-    up2hmm <- lapply(species_df$HMMSEQ_FILE_SUFFIX,function(x){filenames.seq[gsub("^PTHR[0-9]+\\.?[0-9]+_|_$","",filenames.seq)==x]})
-    names(up2hmm) <- species_df$HMMSEQ_FILE_SUFFIX
-    # up2hmm[lengths(up2hmm)>1]
-    # species_df[grep("aspergillus",species_df$HMMSEQ_FILE_SUFFIX),]
-    # up2hmm[!lengths(up2hmm)]
-
-    if(!all(lengths(up2hmm)==1))stop("Error in hmm file name matching")
-
-    for(fn in unlist(up2hmm)){
-      if(file.exists(file.path(dir.seq,fn)))next()
-      ret <- download.file(file.path("ftp:/",src.seq,fn),file.path(dir.seq,fn))
-      if(ret)warning(sprintf("Download of %s with error code %s",fn,ret))
-      cat("\n")
-    }
-  }
-  download.file(url=src.class,destfile=dir.class)
-  download.file(url=src.class_rel,destfile=dir.class_rel)
-
-}
-
-######################################################
+script_arg <- grep("^--file=", commandArgs(), value = TRUE)
+script_dir <- if (length(script_arg)) dirname(normalizePath(sub("^--file=", "", script_arg[[1]]))) else getwd()
+source(file.path(script_dir, "build_support_v19.R"))
+workspace <- dirname(dirname(script_dir))
+panther.v <- "19.0"
+pantherhmm.v <- panther.v
+pantherd.v <- panther.v
+pantherseq.v <- panther.v
+pantherc.v <- "3.6.8"
+home_folder <- Sys.getenv("PANTHER_OUTPUT", file.path(workspace, "PANTHER.db", "inst", "extdata"))
+panther_folder <- Sys.getenv("PANTHER_SOURCES", file.path(workspace, "PANTHER", "src"))
+schema_file <- file.path(script_dir, "PANTHER_DB.sql")
+if (!file.exists(schema_file)) schema_file <- file.path(script_dir, "..", "extdata", "PANTHER_DB.sql")
+schema.text <- paste(readLines(schema_file), collapse = "\n")
+sources <- acquire_panther(panther_folder, panther.v, pantherc.v)
+species_df <- sources$species
+dir.hmm <- sources$hmm
+dir.seq <- sources$seq
+dir.pathway <- sources$pathway
+dir.class <- file.path(sources$ontology, paste0("Protein_Class_", panther.v))
+dir.class_rel <- file.path(sources$ontology, "Protein_class_relationship")
+org_bioc2panther <- setNames(species_df$PANTHER_SPECIES_ID, species_df$Bioconductor)
+org_bioc2panther_fn <- setNames(species_df$HMMSEQ_FILE_SUFFIX, species_df$Bioconductor)
+org_bioc2uniprot <- setNames(species_df$UNIPROT_SPECIES, species_df$Bioconductor)
+org_bioc2uniprot_name <- setNames(species_df$UNIPROT_SPECIES_NAME, species_df$Bioconductor)
+if ("--download-only" %in% commandArgs(trailingOnly = TRUE)) quit(status = 0)
+mapping_file <- Sys.getenv("PANTHER_ENTREZ_MAPPING",
+  file.path(panther_folder, "idmapping_selected_entrez_20230920.tab.gz"))
+# Check before allocating tables or opening an output database.
+if (!file.exists(mapping_file)) stop("Missing UniProt-to-Entrez mapping: ", mapping_file)
+mapping_metadata <- jsonlite::read_json(paste0(mapping_file, ".source.json"), simplifyVector = TRUE)
 
 
 #### PREPARE HMM classifications for GO and Class <> PANTHER ID mappings ####
-panther_hmm2df <- function(mdir,version){
-  p_hmm <- read.delim(file.path(mdir,sprintf("PANTHER%s_HMM_classifications",version)),stringsAsFactors=F,header=F)
-  stopifnot(ncol(p_hmm)==7)
-  colnames(p_hmm) <- c("PANTHER_Subfamily_ID","Annotation_curated","MF_GOslim","BP_GOslim","CC_GOslim","ProteinClass","PANTHER_Pathway")
-  p_fnames <- strsplit(p_hmm$PANTHER_Subfamily_ID,":",fixed=T)
-  p_hmm$PantherID <- sapply(p_fnames,"[",1)
-  p_hmm$PantherSF <- sapply(p_fnames,"[",2)
-
-  cid <- function(mp,idlen=10){if(nchar(mp)){ms <- unlist(strsplit(mp,"#"));paste(sapply(ms[2:length(ms)],substr,start=1,stop=idlen),collapse="|")}else{NA}}
-  # PANTHER_Pathway is never used from this file and omitted in the ftp version of v11.0
-  #if(all(is.na(p_hmm$PANTHER_Pathway)))stop("There is something wrong with column PANTHER_Pathway")
-  p_hmm$PANTHER_Pathway <- NULL
-  #p_hmm$PANTHER_Pathway <- sapply(p_hmm$PANTHER_Pathway,cid,6)
-  p_hmm$MF_GOslim <- sapply(p_hmm$MF_GOslim,cid)
-  p_hmm$BP_GOslim <- sapply(p_hmm$BP_GOslim,cid)
-  p_hmm$CC_GOslim <- sapply(p_hmm$CC_GOslim,cid)
-  p_hmm$ProteinClass <- sapply(p_hmm$ProteinClass,cid,7)
-  p_hmm
-}
+panther_hmm2df <- read_panther_hmm
 
 panther_hmm <- panther_hmm2df(dir.hmm,version=pantherhmm.v)
 dim(panther_hmm);length(unique(panther_hmm$PANTHER_Subfamily_ID))
@@ -266,24 +52,7 @@ dim(panther_hmm);length(unique(panther_hmm$PANTHER_Subfamily_ID))
 
 
 #### PREPARE Pathways for PANTHER pathway <> pantherID and Uniprot mappings ####
-panther_pathways2df <- function(mdir, version, species_remap){
-  p_pway <- read.delim(file.path(mdir,sprintf("/SequenceAssociationPathway%s.txt",version)),stringsAsFactors=F,header=F)
-  stopifnot(ncol(p_pway)%in%c(11,12))#12 in 3.3; 11 in 3.4
-  p_pway <- p_pway[,c(1:11)]
-  colnames(p_pway) <- c("Pathway_Accession","Pathway_Name","Pathway_Component_Accession","Pathway_Component_Name","UniprotID","Protein_Definition","Confidence_Code","Evidence","Evidence_Type","PANTHER_Subfamily_ID","PANTHER_Subfamily_Name")
-  p_upid <- strsplit(p_pway$UniprotID,"|",fixed=T)
-
-  p_pway$Species <- sapply(p_upid,"[",1)
-  invisible(sapply(unique(p_pway$Species),function(mspec){mhit <- which(species_remap==mspec);if(length(mhit)){nspec <- names(species_remap)[mhit];p_pway$Species[p_pway$Species==mspec]<<- nspec}}))
-  p_pway$UniprotID <- substr(sapply(p_upid,"[",3),start=11,16)
-  p_pway <- p_pway[which(p_pway$Species %in% names(species_remap)),]
-
-  p_fnames <- strsplit(p_pway$PANTHER_Subfamily_ID,":",fixed=T)
-  p_pway$PantherID <- sapply(p_fnames,"[",1)
-  p_pway$PantherSF <- sapply(p_fnames,"[",2)
-
-  p_pway
-}
+panther_pathways2df <- read_panther_pathways
 
 panther_pathways <- panther_pathways2df(mdir = dir.pathway, version=pantherc.v, species_remap=org_bioc2panther)
 dim(panther_pathways)
@@ -297,48 +66,9 @@ dim(panther_pathways)
 
 #### PREPARE Sequence classifications for Uniprot <> PANTHER ID mappings ####
 
-panther_seq2df <- function(mdir, version, species, unispec){
-  mlist <- vector("list",length(species))
-  names(mlist) <- names(species)
-  for(spec in names(species)){
-    cat(sprintf("Processing: %s\n",spec))
-    if(is.na(species[[spec]])){
-      message(sprintf("Species %s / %s not found in PANTHER folder",spec, species[[spec]]))
-      next
-    }
+panther_seq2df <- read_panther_sequences
 
-    xfname <- list.files(mdir,pattern = sprintf("PTHR%s_%s_?$",version,species[[spec]]),full.names = T)
-    if(length(xfname)!=1)stop("Error!!")
-    mlist[[spec]] <- read.delim(xfname,stringsAsFactors=F,header=F)
-    #mlist[[spec]] <- read_tsv(xfname,col_names = F)
-    stopifnot(ncol(mlist[[spec]])==11)# 11 rows since v16
-    mlist[[spec]] <- mlist[[spec]][,c(2:11)]
-    mlist[[spec]]$Species <- spec
-    mlist[[spec]]$UniprotSpecies <- unispec[[spec]]
-  }
-  p_seq <- do.call(rbind,mlist)
-  colnames(p_seq) <- c("UniprotID","Gene_Identifier","PantherSF","PANTHER_Family_Name","PANTHER_Subfamily_Name","PANTHER_MF","PANTHER_BP","PANTHER_CC","ProteinClass","PANTHER_Pathway","Species","UniprotSpecies")
-
-  #p_seq$UniprotID <- substr(p_seq$Gene_Identifier,start=nchar(p_seq$Gene_Identifier)-5,stop=nchar(p_seq$Gene_Identifier))
-
-  p_seq$PantherIDSF <- p_seq$PantherSF
-  sfam <- strsplit(p_seq$PantherSF,":",fixed=T)
-  p_seq$PantherID <- sapply(sfam,"[",1)
-  p_seq$PantherSF <- sapply(sfam,"[",2)
-
-  cid <- function(mp,idlen=10){if(nchar(mp)){ms <- unlist(strsplit(mp,"#"));paste(sapply(ms[2:length(ms)],substr,start=1,stop=idlen),collapse="|")}else{NA}}
-
-  p_seq$PANTHER_Pathway <- sapply(p_seq$PANTHER_Pathway,cid,6)
-  p_seq$PANTHER_MF <- sapply(p_seq$PANTHER_MF,cid)
-  p_seq$PANTHER_BP <- sapply(p_seq$PANTHER_BP,cid)
-  p_seq$PANTHER_CC <- sapply(p_seq$PANTHER_CC,cid)
-  p_seq$ProteinClass <- sapply(p_seq$ProteinClass,cid,7)
-
-  p_seq
-
-}
-
-panther_seq <- panther_seq2df(mdir = dir.seq, version=pantherseq.v, species=org_bioc2panther_fn, unispec=org_bioc2uniprot_name)
+panther_seq <- panther_seq2df(mdir = dir.seq, version=pantherseq.v, species=org_bioc2panther_fn, unispec=org_bioc2uniprot_name, species_ids=org_bioc2panther)
 dim(panther_seq)
 # p14.1 -> 1750742     14
 # p16.0 -> 2063337     14
@@ -350,32 +80,7 @@ dim(panther_seq)
 ### ###
 
 
-#### PREPARE Orthologs, not needed at the moment ####
-
-panther_ortholog2df <- function(mdir,version,species_remap){
-  p_ortho <- read.delim(file.path(mdir,"/RefGeneomeOrthologs.tar.gz"),stringsAsFactors=F,header=F)
-  stopifnot(ncol(p_ortho)==5)
-
-  colnames(p_ortho) <- c("Species","SpeciesTarget","OrthologeType","Group","PantherID")
-  p_spec <- strsplit(p_ortho$Species,"|",fixed=T)
-  p_ortho$Species <- sapply(p_spec,"[",1)
-  p_ortho$Uniprot <- substr(sapply(p_spec,"[",3),start=11,16)
-  p_ortho <- p_ortho[which(p_ortho$Species %in% species_remap),]
-
-  p_spec_targ <- strsplit(p_ortho$SpeciesTarget,"|",fixed=T)
-  p_ortho$SpeciesTarget <- sapply(p_spec_targ,"[",1)
-  p_ortho$UniprotTarget <- substr(sapply(p_spec_targ,"[",3),start=11,16)
-  p_ortho <- p_ortho[which(p_ortho$SpeciesTarget %in% species_remap),]
-  #map species to abbreviation used in bioC
-  invisible(sapply(unique(p_ortho$Species),function(mspec){mhit <- which(species_remap==mspec);if(length(mhit)){nspec <- names(species_remap)[mhit];p_ortho$Species[p_ortho$Species==mspec]<<- nspec}}))
-  invisible(sapply(unique(p_ortho$SpeciesTarget),function(mspec){mhit <- which(species_remap==mspec);if(length(mhit)){nspec <- names(species_remap)[mhit];p_ortho$SpeciesTarget[p_ortho$SpeciesTarget==mspec]<<- nspec}}))
-
-  p_ortho
-}
-#mdir <- dir.ortho;version <- "8.1";species_remap=org_bioc2panther
-#panther_ortholog <- panther_ortholog2df(dir.ortho,version="8.1",species_remap=org_bioc2panther)
-### ###
-
+# Ortholog archives do not contribute to this schema and are not build inputs.
 
 #### READ CLASS FILES ####
 
@@ -397,7 +102,7 @@ nrow(panther_hmm);panther_hmm <- panther_hmm[which(panther_hmm$PantherID %in% pa
 ### ###
 
 #### MAKE UNIQUE PANTHER SEQ UNIPROT IDs and filter duplicates due to multiple UNIPROT<>GENE mappings ####
-nrow(panther_seq);panther_seq <- panther_seq[!duplicated(panther_seq$UniprotID),];nrow(panther_seq)
+nrow(panther_seq) # Distinct mapping tuples were retained by the sequence parser.
 # 2063337 v16.0
 # 1965014 v18.0
 ### ###
@@ -418,8 +123,9 @@ panther_seq <- panther_seq[order(panther_seq$PantherIDSF),]
 
 drv <- dbDriver("SQLite")
 
-fl.db <- file.path(home_folder,"PANTHER.db.sqlite")
-file.remove(fl.db)
+dir.create(home_folder, recursive = TRUE, showWarnings = FALSE)
+fl.db <- file.path(home_folder, "PANTHER.v19.candidate.sqlite")
+if (file.exists(fl.db)) stop("Candidate already exists; preserve or move it before rebuilding: ", fl.db)
 db <- dbConnect(drv, dbname=fl.db)
 
 ## Create tables
@@ -427,36 +133,41 @@ create.sql <- strsplit(schema.text, "\n")[[1]]
 create.sql <- paste( create.sql,collapse="\n")
 create.sql <- strsplit(create.sql, ";")[[1]]
 
-tmp <- sapply(create.sql, function(x) dbExecute(db, x))
+create.sql <- trimws(create.sql)
+create.sql <- create.sql[nzchar(create.sql)]
+index.sql <- create.sql[grepl("^CREATE INDEX", create.sql)]
+tmp <- lapply(create.sql[!grepl("^CREATE INDEX", create.sql)], function(x) dbExecute(db, x))
 dbListTables(db)
 #dbListFields(db,"uniprot")
-#dbDisconnect(db)
+# Keep the connection open until all tables and indexes have been loaded.
 ### ###
 
 #### Convenience function for data frame insertion ####
 
 # needs to be updated to replace deprecated dbGetPreparedQuery
-insert_df <- function(mdb,tname,mcols,mdata){
-  dbExecute(mdb, sprintf('delete from %s;',tname))
-  dbBegin(mdb)
-  #dbGetPreparedQuery(mdb,sprintf('INSERT INTO "%s" VALUES(%s);',tname,mcols),bind.data=mdata)
-  dres <- DBI::dbSendQuery(mdb, sprintf('INSERT INTO "%s" VALUES(%s);',tname,mcols))
-  dbBind(dres, mdata)
-  dbClearResult(dres)
-  dbCommit(mdb)
-  dbListFields(mdb,tname)
-  print(dbGetQuery(db,sprintf('select * from "%s" limit 3;',tname)))
-  xc <- as.numeric(dbGetQuery(mdb,sprintf('select count(*) from "%s"',tname)));
-  stopifnot(xc==nrow(mdata))
-  cat(sprintf("INSERTION_SUCCESS n=%d\n",xc))
+insert_df <- function(mdb, tname, mcols, mdata) {
+  fields <- dbListFields(mdb, tname)
+  if (!setequal(names(mdata), fields)) stop("Unexpected columns for ", tname)
+  if ("_id" %in% fields && anyNA(mdata[["_id"]])) stop("Unresolved family IDs in ", tname)
+  DBI::dbWithTransaction(mdb, {
+    DBI::dbAppendTable(mdb, tname, mdata[, fields, drop = FALSE])
+  })
+  count <- DBI::dbGetQuery(mdb, sprintf('SELECT COUNT(*) AS n FROM "%s"', tname))$n
+  stopifnot(count == nrow(mdata))
+  message(tname, ": ", count, " rows")
 }
 
-### ###
+
 
 #### Prepare PANTHER FAMILIES ####
 
 data_panther_families <- panther_hmm[,c("_id","PANTHER_Subfamily_ID")]
-data_panther_families <- merge(data_panther_families,panther_seq[,c("PantherIDSF","PANTHER_Family_Name","PANTHER_Subfamily_Name")],by.x="PANTHER_Subfamily_ID",by.y="PantherIDSF",all=T)
+family_names <- unique(panther_seq[,c("PantherIDSF","PANTHER_Family_Name","PANTHER_Subfamily_Name")])
+if (anyDuplicated(family_names$PantherIDSF)) stop("Conflicting names for a subfamily")
+if (length(setdiff(family_names$PantherIDSF, data_panther_families$PANTHER_Subfamily_ID)))
+  stop("Sequence subfamilies missing from HMM classifications")
+data_panther_families <- merge(data_panther_families, family_names,
+  by.x="PANTHER_Subfamily_ID", by.y="PantherIDSF", all.x=TRUE)
 data_panther_families <- data_panther_families[!duplicated(data_panther_families),];nrow(data_panther_families)
 colnames(data_panther_families) <- c("family_id","_id","family_term","subfamily_term")
 rownames(data_panther_families) <- data_panther_families$family_id
@@ -538,6 +249,7 @@ insert_df(db,"go_slim",":_id,:goslim_id, :ontology",data_go_slim)
 data_uniprot <- data.frame(uniprot_id=rep(panther_seq$UniprotID,2),species=rep(panther_seq$Species,2),family_id=c(panther_seq$PantherIDSF,panther_seq$PantherID),stringsAsFactors=F)
 #data_uniprot <- data.frame(uniprot_id=panther_seq$UniprotID,species=panther_seq$Species,family_id=panther_seq$PantherIDSF,stringsAsFactors=F)
 data_uniprot$`_id` <- panther_hmm[data_uniprot$family_id,"_id"]
+data_uniprot <- unique(data_uniprot)
 ### ###
 
 #### Insert uniprot ####
@@ -562,83 +274,10 @@ insert_df(db,"uniprot",":_id,:uniprot_id,:species",data_uniprot[, c("_id","unipr
 
 #### Prepare ENTREZ ####
 
-# takes ~20min for download and another 20min for reading
-if(rebuild_entrez){
+entrez_start <- Sys.time()
+data_entrez <- build_entrez(mapping_file, data_uniprot[, c("_id", "uniprot_id", "species")])
+message("Entrez join seconds: ", as.numeric(difftime(Sys.time(), entrez_start, units = "secs")))
 
-  # download full mapping file idmapping_selected.tab.gz from https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/idmapping/idmapping_selected.tab.gz
-  # curl https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/idmapping/idmapping_selected.tab.gz | zcat - |  cut -f1,3 | awk '$2 != ""' > idmapping_selected_entrez_DATE.tab; pigz idmapping_selected_entrez_DATE.tab
-  mnm <- read_tsv(file.path(panther_folder,"idmapping_selected_entrez_20230920.tab.gz"), col_names = F)
-  mnm <- mnm %>% dplyr::rename(Uniprot=X1, ENTREZ=X2) %>% dplyr::filter(!is.na(ENTREZ))
-  nrow(mnm) # v16 13006433
-  # v18 12748823
-  #
-  # select(PANTHER.db,"3255768",c("UNIPROT","SPECIES","FAMILY_ID"),"ENTREZ")
-  # nlen <- length(unique(data_uniprot$uniprot_id))
-  # dx <- data_uniprot
-  # dx$Lx <- cut(1:nlen,breaks = round(seq(1,nlen,length.out = 15)),labels = LETTERS[1:14],include.lowest = T)
-  # for(mychunk in levels(dx$Lx))write.csv( dx$uniprot_id[dx$Lx==mychunk],file.path("....",sprintf("test_%s.txt",mychunk)),quote = F,row.names = F,col.names = F)
-
-  entrez_list <- vector("list")
-  tstart <- Sys.time()
-  for(spec in names(org_bioc2uniprot)){
-    taxid <- species_df[species_df$Bioconductor==spec,"UNIPROT_SPECIES"]
-    cat(paste0(spec,"\n"))
-    tst <- Sys.time()
-    sub_up <- data_uniprot[which(data_uniprot$species==spec),c("_id","uniprot_id")]
-    up2key <- split(sub_up$`_id`,f=sub_up$uniprot_id)
-    mnsub <- mnm %>% dplyr::filter(Uniprot %in% sub_up$uniprot_id)
-
-    #up.ws <- UniProt.ws(taxId=taxid)
-    #mkeys <- unique(sub_up$uniprot_id)
-    #all_maps <- suppressWarnings(select(up.ws,keys= mkeys, columns="ENTREZ_GENE", keytype="UNIPROTKB"))
-    #if(all(is.na(all_maps$ENTREZ_GENE))){
-    if(!nrow(mnsub)){
-      cat(sprintf("No entrez ID <> uniprot ID mapping found for species %s\n",spec))
-      next()
-    }
-    up2ez <- stack(sapply(split(mnsub$ENTREZ, mnsub$Uniprot),strsplit,split="; "))
-
-    entrez2up <- split(as.character(up2ez$ind),f=up2ez$values)
-
-    #stopifnot(all(mkeys %in% all_maps$UNIPROTKB))
-    #all_maps <- all_maps[!is.na(all_maps$ENTREZ_GENE),]
-    #entrez2up <- split(all_maps$UNIPROTKB,f=all_maps$ENTREZ_GENE)
-
-    keylist <- lapply(entrez2up,function(xel){unique(unlist(up2key[xel]))})
-    entrezdf <- as_tibble(stack(keylist)) %>% mutate(ind=as.character(ind))
-
-    colnames(entrezdf) <- c("_id","entrez_id")
-    entrezdf$species <- spec
-    entrez_list[[spec]] <- entrezdf
-    cat(sprintf("%s [%s entries] completed in %.2fmin, total %.2fmin\n",spec,nrow(entrezdf),as.numeric(difftime(Sys.time(),tst,units="mins")),as.numeric(difftime(Sys.time(),tstart,units="mins"))))
-  }
-  difftime(Sys.time(),tstart,units="mins")
-  data_entrez <- bind_rows(entrez_list)
-  save(data_entrez,file=file.path(panther_folder,sprintf("data_entrez_v%s.RData",panther.v)))
-  # … with 2,081,070 more rows in v16.0
-  # v18.0: 1,888,067 / missing: ZOSMR,SYNY3,THEYD,THEMA,RHOBA,PYRAE,PRIPA,PHYRM,KLENI,HAEIN,GLOVI,GEOSL,DICTD,FUSNN,CHLAA,DAPPU,AQUAE,MYCGE
-}else{
-  load(file.path(panther_folder,sprintf("data_entrez_v%s.RData",panther.v)),v=T)
-}
-# No entrez ID <> uniprot ID mapping found for species AQUAE
-# No entrez ID <> uniprot ID mapping found for species CHLAA
-# No entrez ID <> uniprot ID mapping found for species DAPPU
-# No entrez ID <> uniprot ID mapping found for species DEIRA
-# No entrez ID <> uniprot ID mapping found for species DICTD
-# No entrez ID <> uniprot ID mapping found for species GEOSL
-# No entrez ID <> uniprot ID mapping found for species GLOVI
-# No entrez ID <> uniprot ID mapping found for species MANES
-# No entrez ID <> uniprot ID mapping found for species PHYRM
-# No entrez ID <> uniprot ID mapping found for species PRIPA
-# No entrez ID <> uniprot ID mapping found for species PYRAE
-# No entrez ID <> uniprot ID mapping found for species RHOBA
-# No entrez ID <> uniprot ID mapping found for species SYNY3
-# No entrez ID <> uniprot ID mapping found for species THEYD
-# No entrez ID <> uniprot ID mapping found for species THEMA
-# No entrez ID <> uniprot ID mapping found for species ZOSMR
-# No entrez ID <> uniprot ID mapping found for species MYCGE
-
-### ###
 
 #### Insert entr ####
 
@@ -667,7 +306,7 @@ data_protein_class <- data_protein_class[!is.na(data_protein_class$values),];nro
 data_protein_class$ind <- as.character(data_protein_class$ind)
 colnames(data_protein_class) <- c("class_id","_id")
 data_protein_class$class_term <- NA
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_protein_class$class_id,fixed=T);if(length(md))data_protein_class$class_term[md]<<- data_class$class_term[ci]}))
+data_protein_class$class_term <- data_class$class_term[match(data_protein_class$class_id, data_class$class_id)]
 if(any(is.na(data_protein_class$class_term)))stop("error")
 ### ###
 
@@ -741,8 +380,8 @@ insert_df(db,"protein_class_tree",":class_tree_id,:class_id,:class_term,:definit
 data_class_rel$parent_class_id <- NA
 data_class_rel$class_tree_id <- NA
 #convert class ids to tree_ids
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel$class_id_offspring,fixed=T);if(length(md))data_class_rel$class_tree_id[md]<<- data_class$class_tree_id[ci]}))
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel$class_id_parent,fixed=T);if(length(md))data_class_rel$parent_class_id[md]<<- data_class$class_tree_id[ci]}))
+data_class_rel$class_tree_id <- data_class$class_tree_id[match(data_class_rel$class_id_offspring, data_class$class_id)]
+data_class_rel$parent_class_id <- data_class$class_tree_id[match(data_class_rel$class_id_parent, data_class$class_id)]
 
 ### ###
 #### Insert parent protein_class_tree ####
@@ -779,8 +418,8 @@ data_class_rel_child <- data_class_rel
 data_class_rel_child$child_class_id <- NA
 data_class_rel_child$class_tree_id <- NA
 #convert class ids to tree_ids
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_child$class_id_offspring,fixed=T);if(length(md))data_class_rel_child$child_class_id[md]<<- data_class$class_tree_id[ci]}))
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_child$class_id_parent,fixed=T);if(length(md))data_class_rel_child$class_tree_id[md]<<- data_class$class_tree_id[ci]}))
+data_class_rel_child$child_class_id <- data_class$class_tree_id[match(data_class_rel_child$class_id_offspring, data_class$class_id)]
+data_class_rel_child$class_tree_id <- data_class$class_tree_id[match(data_class_rel_child$class_id_parent, data_class$class_id)]
 
 ### ###
 
@@ -811,20 +450,8 @@ insert_df(db,"protein_class_child",":class_tree_id,:child_class_id",data_class_r
 
 
 #### Prepare ancestor protein_class_tree ####
-find_ancestors <- function(node,parents,children){
-  parent_vec <- parents[grep(node,data_class_rel_child$class_id_offspring,fixed=T)]
-  temp_vec <- c();
-  for(parent in parent_vec){
-    child_vec <- children[grep(parent,children,fixed=T)]
-    if(!length(child_vec)){
-      next
-    }else{
-      temp_vec <- c(temp_vec,find_ancestors(parent,parents,children))
-    }
-  }
-  c(parent_vec,temp_vec)
-}
-olist <- lapply(unique(data_class_rel_child$class_id_offspring),function(cid){unique(find_ancestors(cid,data_class_rel_child$class_id_parent,data_class_rel_child$class_id_offspring))})
+parent_lookup <- split(data_class_rel_child$class_id_parent, data_class_rel_child$class_id_offspring)
+olist <- class_closure(unique(data_class_rel_child$class_id_offspring), parent_lookup)
 
 names(olist) <- unique(data_class_rel_child$class_id_offspring)
 data_class_rel_off <- stack(olist);nrow(data_class_rel_off)
@@ -832,8 +459,8 @@ data_class_rel_off$ind <- as.character(data_class_rel_off$ind)
 colnames(data_class_rel_off) <- c("class_id_parent","class_id_offspring")
 data_class_rel_off$ancestor_class_id <- NA
 data_class_rel_off$class_tree_id <- NA
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_off$class_id_parent,fixed=T);if(length(md))data_class_rel_off$ancestor_class_id[md]<<- data_class$class_tree_id[ci]}))
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_off$class_id_offspring,fixed=T);if(length(md))data_class_rel_off$class_tree_id[md]<<- data_class$class_tree_id[ci]}))
+data_class_rel_off$ancestor_class_id <- data_class$class_tree_id[match(data_class_rel_off$class_id_parent, data_class$class_id)]
+data_class_rel_off$class_tree_id <- data_class$class_tree_id[match(data_class_rel_off$class_id_offspring, data_class$class_id)]
 ### ###
 #### Insert ancestor protein_class_tree ####
 insert_df(db,"protein_class_ancestor",":class_tree_id,:ancestor_class_id",data_class_rel_off[,c("class_tree_id","ancestor_class_id")])
@@ -861,20 +488,8 @@ insert_df(db,"protein_class_ancestor",":class_tree_id,:ancestor_class_id",data_c
 
 
 #### Prepare offspring protein_class_tree ####
-find_children <- function(node,parents,children){
-  child_vec <- children[grep(node,data_class_rel$class_id_parent,fixed=T)]
-  temp_vec <- c();
-  for(child in child_vec){
-    parent_vec <- parents[grep(child,parents,fixed=T)]
-    if(!length(parent_vec)){
-      next
-    }else{
-      temp_vec <- c(temp_vec,find_children(child,parents,children))
-    }
-  }
-  c(child_vec,temp_vec)
-}
-olist <- lapply(unique(data_class_rel$class_id_parent),function(cid){unique(find_children(cid,data_class_rel$class_id_parent,data_class_rel$class_id_offspring))})
+child_lookup <- split(data_class_rel$class_id_offspring, data_class_rel$class_id_parent)
+olist <- class_closure(unique(data_class_rel$class_id_parent), child_lookup)
 
 names(olist) <- unique(data_class_rel$class_id_parent)
 data_class_rel_off <- stack(olist);nrow(data_class_rel_off)
@@ -882,8 +497,8 @@ data_class_rel_off$ind <- as.character(data_class_rel_off$ind)
 colnames(data_class_rel_off) <- c("class_id_offspring","class_id_parent")
 data_class_rel_off$offspring_class_id <- NA
 data_class_rel_off$class_tree_id <- NA
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_off$class_id_offspring,fixed=T);if(length(md))data_class_rel_off$offspring_class_id[md]<<- data_class$class_tree_id[ci]}))
-invisible(sapply(1:length(data_class$class_id),function(ci){md <- grep(data_class$class_id[ci],data_class_rel_off$class_id_parent,fixed=T);if(length(md))data_class_rel_off$class_tree_id[md]<<- data_class$class_tree_id[ci]}))
+data_class_rel_off$offspring_class_id <- data_class$class_tree_id[match(data_class_rel_off$class_id_offspring, data_class$class_id)]
+data_class_rel_off$class_tree_id <- data_class$class_tree_id[match(data_class_rel_off$class_id_parent, data_class$class_id)]
 ### ###
 #### Insert offspring protein_class_tree ####
 insert_df(db,"protein_class_offspring",":class_tree_id,:offspring_class_id",data_class_rel_off[,c("class_tree_id","offspring_class_id")])
@@ -942,7 +557,7 @@ insert_df(db,"panther_go",":_id,:go_id,:go_term",data_pathway[,c("_id","go_id","
 # 3  34 P00052 TGF-beta signaling pathway
 # INSERTION_SUCCESS n=10248
 
-v18
+# v18
 # _id  go_id                    go_term
 # 1  27 P00052 TGF-beta signaling pathway
 # 2  28 P00052 TGF-beta signaling pathway
@@ -1032,13 +647,20 @@ insert_df(db,"species",":species,:mnemonic_panther,:genome_src_panther,:genome_d
 metadata <- rbind(
   c("ORGANISMS", paste(sort(species_df$Bioconductor[!is.na(species_df$PANTHER_SPECIES_ID)]),collapse="|")),
   c("PANTHERVERSION", panther.v),
-  c("PANTHERSOURCEURL","ftp.pantherdb.org"),
+  c("PANTHERSOURCEURL","https://data.pantherdb.org"),
+  c("UNIPROT_MAPPING_SNAPSHOT", mapping_metadata$snapshot_date),
+  c("PATHWAYVERSION", pantherc.v),
+  c("REFERENCE_PROTEOME_VERSIONS", paste(sort(unique(species_df$GENOME_DATE)), collapse = "|")),
+  c("PROTEIN_CLASS_HEADER_VERSION", paste0(sub("^! version: ", "", readLines(dir.class, n = 1L)),
+                                         " (distributed in PANTHER", panther.v, ")")),
+  c("SOURCE_MANIFEST_SHA256", sha256_file(file.path(sources$cache, "source_manifest.json"))),
   c("PANTHERSOURCEDATE",format(Sys.time(), "%Y-%b%d")),
   c("package","AnnotationDbi"),
   c("Db type","PANTHER.db"),
   c("DBSCHEMA","PANTHER_DB"),
   c("DBSCHEMAVERSION", "2.1"),
-  c("UNIPROT to ENTREZ mapping", format(Sys.time(), "%Y-%b%d"))
+  c("UNIPROT to ENTREZ mapping", mapping_metadata$snapshot_date),
+  c("UNIPROT_MAPPING_SHA256", sha256_file(mapping_file))
 )
 q <- paste(sep="", "INSERT INTO 'metadata' VALUES('", metadata[,1],"','", metadata[,2], "');")
 tmp <- sapply(q, function(x) dbExecute(db, x))
@@ -1064,13 +686,9 @@ tmp <- sapply(q, function(x) dbExecute(db, x))
 # 1                                                     1
 # INSERT INTO 'map_counts' VALUES('UNIPROT',3930028);          INSERT INTO 'map_counts' VALUES('GO',10169);
 # 1                                                     1
-# INSERT INTO 'map_counts' VALUES('ENTREZ',1888067);
-# 1
-
-### ###
-
-#### DISCONNECT ####
+# Finish all original indexes after bulk insertion.
+invisible(lapply(index.sql, function(x) dbExecute(db, x)))
+stopifnot(identical(dbGetQuery(db, "PRAGMA integrity_check")[[1]], "ok"))
+if (nrow(dbGetQuery(db, "PRAGMA foreign_key_check"))) stop("Foreign key violations")
 dbDisconnect(db)
-### ###
-
-cat(sprintf("Total build time %.2fmin\n",as.numeric(difftime(Sys.time(),build_start,units="mins"))))
+cat(sprintf("Total build time %.2fmin\n", as.numeric(difftime(Sys.time(), build_start, units = "mins"))))

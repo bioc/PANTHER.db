@@ -11,7 +11,7 @@
 
 <meta name="author" content="Julius Muller" />
 
-<meta name="date" content="2023-09-21" />
+<meta name="date" content="2026-09-10" />
 
 <title>PANTHER.db vignette</title>
 
@@ -484,18 +484,18 @@ font-style: normal;
 line-height: normal;
 }
 
-code > span.kw { color: #E07020; } 
-code > span.dt { color: #404040; } 
-code > span.dv { color: #D02070; } 
-code > span.bn { color: #d14; } 
-code > span.fl { color: #D02070; } 
-code > span.ch { color: #40A040; } 
-code > span.st { color: #40A040; } 
-code > span.co { color: #808080; font-style: italic; } 
-code > span.ot { color: #2020F0; } 
-code > span.al { color: #ff0000; font-weight: bold; } 
-code > span.fu { color: #E07020; } 
-code > span.er { color: #FF0000; } 
+code > span.kw { color: #E07020; }
+code > span.dt { color: #404040; }
+code > span.dv { color: #D02070; }
+code > span.bn { color: #d14; }
+code > span.fl { color: #D02070; }
+code > span.ch { color: #40A040; }
+code > span.st { color: #40A040; }
+code > span.co { color: #808080; font-style: italic; }
+code > span.ot { color: #2020F0; }
+code > span.al { color: #ff0000; font-weight: bold; }
+code > span.fu { color: #E07020; }
+code > span.er { color: #FF0000; }
 code > span.identifier { color: #404040; }
 code > span.number { color: #D02070; }
 code > span.string { color: #40A040; }
@@ -704,17 +704,20 @@ function toggle_visibility(id1) {
 <h1 class="title toc-ignore">PANTHER.db vignette</h1>
 <h3 class="subtitle">PANTHER.db: An annotation package to access the PANTHER Classification System</h3>
 <p class="author-name">Julius Muller</p>
-<h4 class="date">2023-09-21</h4>
+<h4 class="date">10 September 2026</h4>
 <h4 class="package">Package</h4>
-<p>PANTHER.db 1.0.11</p>
+<p>PANTHER.db 1.0.13</p>
 
 </div>
 
 
 <div id="introduction-to-panther.db" class="section level1 unnumbered">
 <h1>Introduction to <code>PANTHER.db</code></h1>
-<p>The <em><a href="https://bioconductor.org/packages/3.18/PANTHER.db">PANTHER.db</a></em> package provides a <code>select</code> interface to the compiled PANTHER ontology residing within a SQLite database.</p>
-<p><code>PANTHER.db</code> can be installed from Bioconductor using</p>
+<p>The <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> package provides a <code>select</code> interface to the compiled PANTHER ontology residing within a SQLite database.</p>
+<p>This update uses PANTHER 19.0 and pathway associations 3.6.8. Entrez mappings
+reuse the UniProt-to-Entrez snapshot downloaded on 2023-09-20. Source releases,
+the mapping snapshot date, and checksums are recorded in the database metadata.</p>
+<p><em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> can be installed from Bioconductor using</p>
 <pre class="r"><code>if (!requireNamespace(&quot;BiocManager&quot;)) install.packages(&quot;BiocManager&quot;)
 BiocManager::install(&quot;PANTHER.db&quot;)</code></pre>
 <p>The size of the underlying SQLite database is currently about 500MB and has to be pre downloaded using AnnotationHub as follows</p>
@@ -722,26 +725,32 @@ BiocManager::install(&quot;PANTHER.db&quot;)</code></pre>
 library(AnnotationHub)
 ah &lt;- AnnotationHub()
 query(ah, &quot;PANTHER.db&quot;)[[1]]</code></pre>
-<p>Finally <code>PANTHER.db</code> can be loaded with</p>
+<p>Finally <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> can be loaded with</p>
 <pre class="r"><code>library(PANTHER.db)</code></pre>
 <p>If you already know about the select interface, you can immediately
 learn about the various methods for this object by just looking at the
 help page.</p>
 <pre class="r"><code>help(&quot;PANTHER.db&quot;)</code></pre>
-<p>When you load the <code>PANTHER.db</code> package, it creates a <code>PANTHER.db</code> object. If you look at the object you will see
+<p>When you load the <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> package, it creates a <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> object. If you look at the object you will see
 some helpful information about it.</p>
 <pre class="r"><code>PANTHER.db</code></pre>
 <pre><code>## PANTHER.db object:
-## | ORGANISMS: AMBTC|ANOCA|ANOPHELES|AQUAE|ARABIDOPSIS|ASHGO|ASPFU|BACCR|BACSU|BACTN|BATDJ|BOVINE|BRADI|BRADU|BRAFL|BRANA|BRARP|CAEBR|CANAL|CANINE|CAPAN|CHICKEN|CHIMP|CHLAA|CHLRE|CHLTR|CIOIN|CITSI|CLOBH|COELICOLOR|COXBU|CRYNJ|CUCSA|DAPPU|DEIRA|DICDI|DICPU|DICTD|ECOLI|EMENI|ERYGU|EUCGR|FELCA|FLY|FUSNN|GEOSL|GIAIC|GLOVI|GORGO|GOSHI|HAEIN|HALSA|HELAN|HELPY|HELRO|HORSE|HORVV|HUMAN|IXOSC|JUGRE|KORCO|LACSA|LEIMA|LEPIN|LEPOC|LISMO|MAIZE|MALARIA|MANES|MARPO|MEDTR|METAC|METJA|MONBE|MONDO|MOUSE|MUSAM|MYCGE|MYCTU|NEIMB|NELNU|NEMVE|NEUCR|NITMS|ORNAN|ORYLA|ORYSJ|PARTE|PHANO|PHYPA|PHYRM|PIG|POPTR|PRIPA|PRUPE|PSEAE|PUCGT|PYRAE|RAT|RHESUS|RHOBA|RICCO|SACS2|SALTY|SCHJY|SCHPO|SCLS1|SELML|SETIT|SHEON|SOLLC|SOLTU|SORBI|SOYBN|SPIOL|STAA8|STRPU|STRR6|SYNY3|THAPS|THECC|THEKO|THEMA|THEYD|TOBAC|TRIAD|TRICA|TRIVA|TRYB2|USTMA|VIBCH|VITVI|WHEAT|WORM|XANCP|XENOPUS|YARLI|YEAST|YERPE|ZEBRAFISH|ZOSMR
-## | PANTHERVERSION: 18.0
-## | PANTHERSOURCEURL: ftp.pantherdb.org
-## | PANTHERSOURCEDATE: 2023-Sep20
+## | ORGANISMS: AMBTC|ANOCA|ANOPHELES|AQUAE|ARABIDOPSIS|ASHGO|ASPFU|BACCR|BACSU|BACTN|BATDJ|BOVINE|BRACM|BRADI|BRADU|BRAFL|BRANA|CAEBR|CANAL|CANINE|CAPAN|CHICKEN|CHIMP|CHLAA|CHLRE|CHLTR|CIOIN|CITSI|CLOBH|COELICOLOR|COXBU|CRYNJ|CUCSA|DAPPU|DEIRA|DICDI|DICPU|DICTD|ECOLI|EMENI|ENTH1|ERYGU|EUCGR|FELCA|FLY|FUSNN|GEOSL|GIAIC|GLOVI|GORGO|GOSHI|HAEIN|HALSA|HELAN|HELPY|HELRO|HORSE|HORVV|HUMAN|IXOSC|JUGRE|KLENI|KORCO|LACSA|LEIMA|LEPIN|LEPOC|LISMO|MAIZE|MALARIA|MANES|MARPO|MEDTR|METAC|METJA|MONBE|MONDO|MOUSE|MUSAM|MYCGE|MYCTU|NEIMB|NELNU|NEMVE|NEUCR|NITMS|ORNAN|ORYLA|ORYSJ|PARTE|PHANO|PHYPA|PHYRM|PIG|POPTR|PRIPA|PRUPE|PSEAE|PUCGT|PYRAE|RAT|RHESUS|RHOBA|RICCO|SACS2|SALTY|SCHJY|SCHPO|SCLS1|SELML|SETIT|SHEON|SOLLC|SOLTU|SORBI|SOYBN|SPIOL|STAA8|STRPU|STRR6|SYNY3|THAPS|THECC|THEKO|THEMA|THEYD|TOBAC|TRIAD|TRICA|TRIV3|TRYB2|USTMA|VIBCH|VITVI|WHEAT|WORM|XANCP|XENLA|XENOPUS|YARLI|YEAST|YERPE|ZEBRAFISH|ZOSMR
+## | PANTHERVERSION: 19.0
+## | PANTHERSOURCEURL: https://data.pantherdb.org
+## | UNIPROT_MAPPING_SNAPSHOT: 2023-09-20
+## | PATHWAYVERSION: 3.6.8
+## | REFERENCE_PROTEOME_VERSIONS: 2023_03|2023_05
+## | PROTEIN_CLASS_HEADER_VERSION: 17.0 (distributed in PANTHER19.0)
+## | SOURCE_MANIFEST_SHA256: 2d76903606faa628eaae15ff96f7fa8f0c918fc3e7b4812491f54aa2117a164c
+## | PANTHERSOURCEDATE: 2026-Sep10
 ## | package: AnnotationDbi
 ## | Db type: PANTHER.db
 ## | DBSCHEMA: PANTHER_DB
 ## | DBSCHEMAVERSION: 2.1
-## | UNIPROT to ENTREZ mapping: 2023-Sep20</code></pre>
-<p>By default, you can see that the <code>PANTHER.db</code> object is set to
+## | UNIPROT to ENTREZ mapping: 2023-09-20
+## | UNIPROT_MAPPING_SHA256: 910d15c601b5df23890942107a4e21b1b52b97ece2f57ac012c248ff1a839e5a</code></pre>
+<p>By default, you can see that the <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> object is set to
 retrieve records from the various organisms supported by <a href="http://pantherdb.org" class="uri">http://pantherdb.org</a>.
 Methods are provided to restrict all queries to a specific organism.
 In order to change it, you first need to look up the appropriate organism
@@ -751,12 +760,12 @@ In order to display the choices, we have provided the helper function
 <code>availablePthOrganisms</code> which will list all the supported
 organisms along with their Uniprot organism name and taxonomy ids:</p>
 <pre class="r"><code>availablePthOrganisms(PANTHER.db)[1:5,]</code></pre>
-<pre><code>##   AnnotationDbi Species PANTHER Species              Genome Source Genome Date
-## 1                 HUMAN           HUMAN Reference Proteome 2022_02       20592
-## 2                 MOUSE           MOUSE Reference Proteome 2022_02       21983
-## 3                   RAT             RAT Reference Proteome 2022_02       22825
-## 4               CHICKEN           CHICK Reference Proteome 2022_02       18108
-## 5             ZEBRAFISH           DANRE Reference Proteome 2022_02       26353
+<pre><code>##   AnnotationDbi Species PANTHER Species      Genome Source Genome Date
+## 1                 HUMAN           HUMAN Reference Proteome     2023_03
+## 2                 MOUSE           MOUSE Reference Proteome     2023_03
+## 3                   RAT             RAT Reference Proteome     2023_03
+## 4               CHICKEN           CHICK Reference Proteome     2023_03
+## 5             ZEBRAFISH           DANRE Reference Proteome     2023_03
 ##   UNIPROT Species ID UNIPROT Species Name UNIPROT Taxon ID
 ## 1              HUMAN         Homo sapiens             9606
 ## 2              MOUSE         Mus musculus            10090
@@ -764,80 +773,92 @@ organisms along with their Uniprot organism name and taxonomy ids:</p>
 ## 4              CHICK        Gallus gallus             9031
 ## 5              DANRE          Danio rerio             7955</code></pre>
 <p>Once you have learned the PANTHER organism name for the organism of interest, you
-can then change the organism for the <code>PANTHER.db</code> object:</p>
+can then change the organism for the <em><a href="https://bioconductor.org/packages/3.22/PANTHER.db">PANTHER.db</a></em> object:</p>
 <pre class="r"><code>pthOrganisms(PANTHER.db) &lt;- &quot;HUMAN&quot;
 PANTHER.db</code></pre>
 <pre><code>## PANTHER.db object:
 ## | ORGANISMS: HUMAN
-## | PANTHERVERSION: 18.0
-## | PANTHERSOURCEURL: ftp.pantherdb.org
-## | PANTHERSOURCEDATE: 2023-Sep20
+## | PANTHERVERSION: 19.0
+## | PANTHERSOURCEURL: https://data.pantherdb.org
+## | UNIPROT_MAPPING_SNAPSHOT: 2023-09-20
+## | PATHWAYVERSION: 3.6.8
+## | REFERENCE_PROTEOME_VERSIONS: 2023_03|2023_05
+## | PROTEIN_CLASS_HEADER_VERSION: 17.0 (distributed in PANTHER19.0)
+## | SOURCE_MANIFEST_SHA256: 2d76903606faa628eaae15ff96f7fa8f0c918fc3e7b4812491f54aa2117a164c
+## | PANTHERSOURCEDATE: 2026-Sep10
 ## | package: AnnotationDbi
 ## | Db type: PANTHER.db
 ## | DBSCHEMA: PANTHER_DB
 ## | DBSCHEMAVERSION: 2.1
-## | UNIPROT to ENTREZ mapping: 2023-Sep20</code></pre>
+## | UNIPROT to ENTREZ mapping: 2023-09-20
+## | UNIPROT_MAPPING_SHA256: 910d15c601b5df23890942107a4e21b1b52b97ece2f57ac012c248ff1a839e5a</code></pre>
 <pre class="r"><code>resetPthOrganisms(PANTHER.db)
 PANTHER.db</code></pre>
 <pre><code>## PANTHER.db object:
-## | ORGANISMS: AMBTC|ANOCA|ANOPHELES|AQUAE|ARABIDOPSIS|ASHGO|ASPFU|BACCR|BACSU|BACTN|BATDJ|BOVINE|BRADI|BRADU|BRAFL|BRANA|BRARP|CAEBR|CANAL|CANINE|CAPAN|CHICKEN|CHIMP|CHLAA|CHLRE|CHLTR|CIOIN|CITSI|CLOBH|COELICOLOR|COXBU|CRYNJ|CUCSA|DAPPU|DEIRA|DICDI|DICPU|DICTD|ECOLI|EMENI|ERYGU|EUCGR|FELCA|FLY|FUSNN|GEOSL|GIAIC|GLOVI|GORGO|GOSHI|HAEIN|HALSA|HELAN|HELPY|HELRO|HORSE|HORVV|HUMAN|IXOSC|JUGRE|KORCO|LACSA|LEIMA|LEPIN|LEPOC|LISMO|MAIZE|MALARIA|MANES|MARPO|MEDTR|METAC|METJA|MONBE|MONDO|MOUSE|MUSAM|MYCGE|MYCTU|NEIMB|NELNU|NEMVE|NEUCR|NITMS|ORNAN|ORYLA|ORYSJ|PARTE|PHANO|PHYPA|PHYRM|PIG|POPTR|PRIPA|PRUPE|PSEAE|PUCGT|PYRAE|RAT|RHESUS|RHOBA|RICCO|SACS2|SALTY|SCHJY|SCHPO|SCLS1|SELML|SETIT|SHEON|SOLLC|SOLTU|SORBI|SOYBN|SPIOL|STAA8|STRPU|STRR6|SYNY3|THAPS|THECC|THEKO|THEMA|THEYD|TOBAC|TRIAD|TRICA|TRIVA|TRYB2|USTMA|VIBCH|VITVI|WHEAT|WORM|XANCP|XENOPUS|YARLI|YEAST|YERPE|ZEBRAFISH|ZOSMR
-## | PANTHERVERSION: 18.0
-## | PANTHERSOURCEURL: ftp.pantherdb.org
-## | PANTHERSOURCEDATE: 2023-Sep20
+## | ORGANISMS: AMBTC|ANOCA|ANOPHELES|AQUAE|ARABIDOPSIS|ASHGO|ASPFU|BACCR|BACSU|BACTN|BATDJ|BOVINE|BRACM|BRADI|BRADU|BRAFL|BRANA|CAEBR|CANAL|CANINE|CAPAN|CHICKEN|CHIMP|CHLAA|CHLRE|CHLTR|CIOIN|CITSI|CLOBH|COELICOLOR|COXBU|CRYNJ|CUCSA|DAPPU|DEIRA|DICDI|DICPU|DICTD|ECOLI|EMENI|ENTH1|ERYGU|EUCGR|FELCA|FLY|FUSNN|GEOSL|GIAIC|GLOVI|GORGO|GOSHI|HAEIN|HALSA|HELAN|HELPY|HELRO|HORSE|HORVV|HUMAN|IXOSC|JUGRE|KLENI|KORCO|LACSA|LEIMA|LEPIN|LEPOC|LISMO|MAIZE|MALARIA|MANES|MARPO|MEDTR|METAC|METJA|MONBE|MONDO|MOUSE|MUSAM|MYCGE|MYCTU|NEIMB|NELNU|NEMVE|NEUCR|NITMS|ORNAN|ORYLA|ORYSJ|PARTE|PHANO|PHYPA|PHYRM|PIG|POPTR|PRIPA|PRUPE|PSEAE|PUCGT|PYRAE|RAT|RHESUS|RHOBA|RICCO|SACS2|SALTY|SCHJY|SCHPO|SCLS1|SELML|SETIT|SHEON|SOLLC|SOLTU|SORBI|SOYBN|SPIOL|STAA8|STRPU|STRR6|SYNY3|THAPS|THECC|THEKO|THEMA|THEYD|TOBAC|TRIAD|TRICA|TRIV3|TRYB2|USTMA|VIBCH|VITVI|WHEAT|WORM|XANCP|XENLA|XENOPUS|YARLI|YEAST|YERPE|ZEBRAFISH|ZOSMR
+## | PANTHERVERSION: 19.0
+## | PANTHERSOURCEURL: https://data.pantherdb.org
+## | UNIPROT_MAPPING_SNAPSHOT: 2023-09-20
+## | PATHWAYVERSION: 3.6.8
+## | REFERENCE_PROTEOME_VERSIONS: 2023_03|2023_05
+## | PROTEIN_CLASS_HEADER_VERSION: 17.0 (distributed in PANTHER19.0)
+## | SOURCE_MANIFEST_SHA256: 2d76903606faa628eaae15ff96f7fa8f0c918fc3e7b4812491f54aa2117a164c
+## | PANTHERSOURCEDATE: 2026-Sep10
 ## | package: AnnotationDbi
 ## | Db type: PANTHER.db
 ## | DBSCHEMA: PANTHER_DB
 ## | DBSCHEMAVERSION: 2.1
-## | UNIPROT to ENTREZ mapping: 2023-Sep20</code></pre>
+## | UNIPROT to ENTREZ mapping: 2023-09-20
+## | UNIPROT_MAPPING_SHA256: 910d15c601b5df23890942107a4e21b1b52b97ece2f57ac012c248ff1a839e5a</code></pre>
 <p>As you can see, organisms are now restricted to Homo sapiens.
 To display all data which can be returned from a select query,
 the columns method can be used:</p>
 <pre class="r"><code>columns(PANTHER.db)</code></pre>
-<pre><code>##  [1] &quot;CLASS_ID&quot;        &quot;CLASS_TERM&quot;      &quot;COMPONENT_ID&quot;    &quot;COMPONENT_TERM&quot; 
-##  [5] &quot;CONFIDENCE_CODE&quot; &quot;ENTREZ&quot;          &quot;EVIDENCE&quot;        &quot;EVIDENCE_TYPE&quot;  
-##  [9] &quot;FAMILY_ID&quot;       &quot;FAMILY_TERM&quot;     &quot;GOSLIM_ID&quot;       &quot;GOSLIM_TERM&quot;    
-## [13] &quot;PATHWAY_ID&quot;      &quot;PATHWAY_TERM&quot;    &quot;SPECIES&quot;         &quot;SUBFAMILY_TERM&quot; 
+<pre><code>##  [1] &quot;CLASS_ID&quot;        &quot;CLASS_TERM&quot;      &quot;COMPONENT_ID&quot;    &quot;COMPONENT_TERM&quot;
+##  [5] &quot;CONFIDENCE_CODE&quot; &quot;ENTREZ&quot;          &quot;EVIDENCE&quot;        &quot;EVIDENCE_TYPE&quot;
+##  [9] &quot;FAMILY_ID&quot;       &quot;FAMILY_TERM&quot;     &quot;GOSLIM_ID&quot;       &quot;GOSLIM_TERM&quot;
+## [13] &quot;PATHWAY_ID&quot;      &quot;PATHWAY_TERM&quot;    &quot;SPECIES&quot;         &quot;SUBFAMILY_TERM&quot;
 ## [17] &quot;UNIPROT&quot;</code></pre>
 <p>Some of these fields can also be used as keytypes:</p>
 <pre class="r"><code>keytypes(PANTHER.db)</code></pre>
-<pre><code>## [1] &quot;CLASS_ID&quot;     &quot;COMPONENT_ID&quot; &quot;ENTREZ&quot;       &quot;FAMILY_ID&quot;    &quot;GOSLIM_ID&quot;   
+<pre><code>## [1] &quot;CLASS_ID&quot;     &quot;COMPONENT_ID&quot; &quot;ENTREZ&quot;       &quot;FAMILY_ID&quot;    &quot;GOSLIM_ID&quot;
 ## [6] &quot;PATHWAY_ID&quot;   &quot;SPECIES&quot;      &quot;UNIPROT&quot;</code></pre>
 <p>It is also possible to display all possible keys of a table for
 any keytype. If keytype is unspecified, the <code>FAMILY_ID</code> will be returned.</p>
 <pre class="r"><code>go_ids &lt;- head(keys(PANTHER.db,keytype=&quot;GOSLIM_ID&quot;))
 go_ids</code></pre>
 <pre><code>## [1] &quot;GO:0000002&quot; &quot;GO:0000003&quot; &quot;GO:0000018&quot; &quot;GO:0000027&quot; &quot;GO:0000030&quot;
-## [6] &quot;GO:0000038&quot;</code></pre>
+## [6] &quot;GO:0000041&quot;</code></pre>
 <p>Finally, you can loop up whatever combinations of columns, keytypes and keys
 that you need when using <code>select</code> or <code>mapIds</code>.</p>
 <pre class="r"><code>cols &lt;- &quot;CLASS_ID&quot;
 res &lt;- mapIds(PANTHER.db, keys=go_ids, column=cols, keytype=&quot;GOSLIM_ID&quot;, multiVals=&quot;list&quot;)
 lengths(res)</code></pre>
-<pre><code>## GO:0000002 GO:0000003 GO:0000018 GO:0000027 GO:0000030 GO:0000038 
-##          8         52          8          6          4          8</code></pre>
+<pre><code>## GO:0000002 GO:0000003 GO:0000018 GO:0000027 GO:0000030 GO:0000041
+##          6         52          8          8          4         12</code></pre>
 <pre class="r"><code>res_inner &lt;- select(PANTHER.db, keys=go_ids, columns=cols, keytype=&quot;GOSLIM_ID&quot;)
 nrow(res_inner)</code></pre>
-<pre><code>## [1] 86</code></pre>
+<pre><code>## [1] 90</code></pre>
 <pre class="r"><code>tail(res_inner)</code></pre>
 <pre><code>##       GOSLIM_ID CLASS_ID
-## 952  GO:0000038  PC00091
-## 953  GO:0000038  PC00144
-## 976  GO:0000038  PC00042
-## 1035 GO:0000038  PC00003
-## 1036 GO:0000038  PC00227
-## 1057 GO:0000038  PC00258</code></pre>
+## 1098 GO:0000041  PC00219
+## 1214 GO:0000041  PC00175
+## 1215 GO:0000041  PC00176
+## 1266 GO:0000041  PC00198
+## 1267 GO:0000041  PC00262
+## 1280 GO:0000041  PC00068</code></pre>
 <p>By default, all tables will be joined using the central table with PANTHER family IDs by an inner join. Therefore all rows without an associated PANTHER family ID will be removed from the output. To include all results with an associated PANTHER family ID, the argument <code>jointype</code> of the <code>select</code> function must be set to <code>left</code>.</p>
 <pre class="r"><code>res_left &lt;- select(PANTHER.db, keys=go_ids, columns=cols,keytype=&quot;GOSLIM_ID&quot;, jointype=&quot;left&quot;)
 nrow(res_left)</code></pre>
-<pre><code>## [1] 1475</code></pre>
+<pre><code>## [1] 1812</code></pre>
 <pre class="r"><code>tail(res_left)</code></pre>
-<pre><code>##       GOSLIM_ID      FAMILY_ID CLASS_ID
-## 1470 GO:0000038 PTHR43107:SF11  PC00258
-## 1471 GO:0000038 PTHR43107:SF11  PC00227
-## 1472 GO:0000038 PTHR43107:SF20  PC00258
-## 1473 GO:0000038 PTHR43107:SF20  PC00227
-## 1474 GO:0000038  PTHR43107:SF6  PC00258
-## 1475 GO:0000038  PTHR43107:SF6  PC00227</code></pre>
+<pre><code>##       GOSLIM_ID     FAMILY_ID CLASS_ID
+## 1807 GO:0000041 PTHR45820:SF8     &lt;NA&gt;
+## 1808 GO:0000041 PTHR45820:SF9     &lt;NA&gt;
+## 1809 GO:0000041     PTHR46365     &lt;NA&gt;
+## 1810 GO:0000041 PTHR46365:SF1     &lt;NA&gt;
+## 1811 GO:0000041     PTHR46531  PC00227
+## 1812 GO:0000041 PTHR46531:SF1  PC00227</code></pre>
 <p>To access the PANTHER Protein Class ontology tree structure, the
 method <code>traverseClassTree</code> can be used:</p>
 <pre class="r"><code>term &lt;- &quot;PC00209&quot;
@@ -864,67 +885,50 @@ select(PANTHER.db,offspring, &quot;CLASS_TERM&quot;,&quot;CLASS_ID&quot;)</code>
 <div id="sessioninfo" class="section level1 unnumbered">
 <h1>SessionInfo</h1>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 4.3.0 (2023-04-21)
-## Platform: x86_64-pc-linux-gnu (64-bit)
-## Running under: Ubuntu 23.04
-## 
+<pre><code>## R version 4.5.2 (2025-10-31)
+## Platform: x86_64-pc-linux-gnu
+## Running under: Ubuntu 26.04.1 LTS
+##
 ## Matrix products: default
-## BLAS:   /opt/R/4.3.0/lib/R/lib/libRblas.so 
-## LAPACK: /usr/lib/x86_64-linux-gnu/openblas-openmp/liblapack.so.3;  LAPACK version 3.11.0
-## 
+## BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3
+## LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.32.so;  LAPACK version 3.12.0
+##
 ## locale:
-##  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
-##  [3] LC_TIME=de_DE.UTF-8        LC_COLLATE=en_US.UTF-8    
-##  [5] LC_MONETARY=de_DE.UTF-8    LC_MESSAGES=en_US.UTF-8   
-##  [7] LC_PAPER=de_DE.UTF-8       LC_NAME=C                 
-##  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
-## [11] LC_MEASUREMENT=de_DE.UTF-8 LC_IDENTIFICATION=C       
-## 
+##  [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8
+##  [4] LC_COLLATE=C.UTF-8     LC_MONETARY=C.UTF-8    LC_MESSAGES=C.UTF-8
+##  [7] LC_PAPER=C.UTF-8       LC_NAME=C              LC_ADDRESS=C
+## [10] LC_TELEPHONE=C         LC_MEASUREMENT=C.UTF-8 LC_IDENTIFICATION=C
+##
 ## time zone: Europe/Berlin
 ## tzcode source: system (glibc)
-## 
+##
 ## attached base packages:
-## [1] stats4    stats     graphics  grDevices utils     datasets  methods  
-## [8] base     
-## 
+## [1] stats4    stats     graphics  grDevices utils     datasets  methods
+## [8] base
+##
 ## other attached packages:
-##  [1] PANTHER.db_1.0.11    RSQLite_2.3.1        AnnotationHub_3.9.2 
-##  [4] BiocFileCache_2.9.1  dbplyr_2.3.3         AnnotationDbi_1.63.2
-##  [7] IRanges_2.35.2       S4Vectors_0.39.1     Biobase_2.61.0      
-## [10] BiocGenerics_0.47.0  BiocStyle_2.29.2    
-## 
+##  [1] PANTHER.db_1.0.13    RSQLite_3.53.3       AnnotationHub_4.0.0
+##  [4] BiocFileCache_3.0.0  dbplyr_2.6.0         BiocStyle_2.38.0
+##  [7] AnnotationDbi_1.72.0 IRanges_2.44.0       S4Vectors_0.48.1
+## [10] Biobase_2.70.0       BiocGenerics_0.56.0  generics_0.1.4
+##
 ## loaded via a namespace (and not attached):
-##  [1] KEGGREST_1.41.0               xfun_0.40                    
-##  [3] bslib_0.5.1                   vctrs_0.6.3                  
-##  [5] tools_4.3.0                   bitops_1.0-7                 
-##  [7] generics_0.1.3                curl_5.0.2                   
-##  [9] tibble_3.2.1                  fansi_1.0.4                  
-## [11] blob_1.2.4                    pkgconfig_2.0.3              
-## [13] lifecycle_1.0.3               GenomeInfoDbData_1.2.10      
-## [15] compiler_4.3.0                Biostrings_2.69.2            
-## [17] httpuv_1.6.11                 GenomeInfoDb_1.37.4          
-## [19] htmltools_0.5.6               sass_0.4.7                   
-## [21] RCurl_1.98-1.12               yaml_2.3.7                   
-## [23] interactiveDisplayBase_1.39.0 later_1.3.1                  
-## [25] pillar_1.9.0                  crayon_1.5.2                 
-## [27] jquerylib_0.1.4               ellipsis_0.3.2               
-## [29] cachem_1.0.8                  mime_0.12                    
-## [31] tidyselect_1.2.0              digest_0.6.33                
-## [33] dplyr_1.1.3                   bookdown_0.35                
-## [35] BiocVersion_3.18.0            fastmap_1.1.1                
-## [37] cli_3.6.1                     magrittr_2.0.3               
-## [39] utf8_1.2.3                    promises_1.2.1               
-## [41] filelock_1.0.2                rappdirs_0.3.3               
-## [43] bit64_4.0.5                   rmarkdown_2.25               
-## [45] XVector_0.41.1                httr_1.4.7                   
-## [47] bit_4.0.5                     png_0.1-8                    
-## [49] memoise_2.0.1                 shiny_1.7.5                  
-## [51] evaluate_0.21                 knitr_1.44                   
-## [53] rlang_1.1.1                   Rcpp_1.0.11                  
-## [55] xtable_1.8-4                  glue_1.6.2                   
-## [57] DBI_1.1.3                     BiocManager_1.30.22          
-## [59] rstudioapi_0.15.0             jsonlite_1.8.7               
-## [61] R6_2.5.1                      zlibbioc_1.47.0</code></pre>
+##  [1] sass_0.4.10         rappdirs_0.3.4      BiocVersion_3.22.0
+##  [4] digest_0.6.39       magrittr_2.0.5      evaluate_1.0.5
+##  [7] bookdown_0.48       fastmap_1.2.0       blob_1.3.0
+## [10] jsonlite_2.0.0      DBI_1.3.0           BiocManager_1.30.27
+## [13] httr_1.4.9          Biostrings_2.78.0   jquerylib_0.1.4
+## [16] httr2_1.3.0         cli_3.6.6           rlang_1.3.0
+## [19] crayon_1.5.3        XVector_0.50.0      bit64_4.8.6
+## [22] cachem_1.1.0        yaml_2.3.12         otel_0.2.0
+## [25] tools_4.5.2         memoise_2.0.1       dplyr_1.2.1
+## [28] filelock_1.0.3      curl_8.0.0          vctrs_0.7.3
+## [31] R6_2.6.1            png_0.1-9           lifecycle_1.0.5
+## [34] KEGGREST_1.50.0     Seqinfo_1.0.0       bit_4.6.0
+## [37] pkgconfig_2.0.3     bslib_0.12.0        pillar_1.11.1
+## [40] glue_1.8.1          xfun_0.60           tibble_3.3.1
+## [43] tidyselect_1.2.1    knitr_1.52          htmltools_0.5.9
+## [46] rmarkdown_2.32      compiler_4.5.2</code></pre>
 </div>
 
 
@@ -993,7 +997,7 @@ $(document).ready(function () {
 
 <script type="text/javascript">
 $(document).ready(function ()  {
-  
+
   // Map "enter" keypress to the same action as a cursor click
   function navigateLink(e) {
     if (e.key === "Enter") {

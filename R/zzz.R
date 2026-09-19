@@ -1,7 +1,7 @@
 
 make_PANTHER.db <- function() {
     ah <- suppressMessages(AnnotationHub())
-    dbfile <- ah[["AH114074", verbose=FALSE]]
+    dbfile <- ah[["AH122304", verbose=FALSE]]
     conn <- AnnotationDbi::dbFileConnect( dbfile )
     db <- new("PANTHER.db", conn=conn)
     db$.initializePANTHERdb()

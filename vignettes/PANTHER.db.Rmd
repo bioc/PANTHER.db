@@ -24,6 +24,10 @@ library("BiocStyle")
 
 The `r Biocannopkg("PANTHER.db")` package provides a `select` interface to the compiled PANTHER ontology residing within a SQLite database.
 
+This update uses PANTHER 19.0 and pathway associations 3.6.8. Entrez mappings
+reuse the UniProt-to-Entrez snapshot downloaded on 2023-09-20. Source releases,
+the mapping snapshot date, and checksums are recorded in the database metadata.
+
 `r Biocannopkg("PANTHER.db")` can be installed from Bioconductor using
 ```{r, eval = FALSE}
 if (!requireNamespace("BiocManager")) install.packages("BiocManager")

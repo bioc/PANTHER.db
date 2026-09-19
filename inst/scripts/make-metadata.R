@@ -1,27 +1,18 @@
-meta <- data.frame(
-  Title = "PANTHER.db database",
-  Description = paste0("Restructured data from PANTHER.db v18.0 ",
-                       "downloaded from the PANTHER.db website",
-                       "with added entrez gene mappings"),
-  BiocVersion = "3.18",
-  Genome = NA,
-  SourceType = "TSV",
-  SourceUrl = "http://www.pantherdb.org,ftp.pantherdb.org,http://data.pantherdb.org,http://www.uniprot.org",
-  SourceVersion = "18.0",
-  Species = NA,
-  TaxonomyId = NA,
-  Coordinate_1_based = NA,
-  DataProvider = "http://www.pantherdb.org",
-  Maintainer = "Julius Muller <mail@jmuller.eu>",
-  RDataClass = "SQLite",
-  DispatchClass = "FilePath",
-  RDataPath = "PANTHER.db/1.0.12/PANTHER.db.sqlite",
-  ResourceName = "PANTHER.db.sqlite",
-  Tags = "Annotation"
-)
-
-## Not run:
-## Write the data out and put in the inst/extdata directory.
-write.csv(meta, file=file.path("/home/jmueller/pCloudDrive/workspace/PANTHER/git/bioc/PANTHER.db/inst/extdata/metadata.csv"), row.names=FALSE)
-
-makeAnnotationHubMetadata("/home/jmueller/pCloudDrive/workspace/PANTHER/git/bioc/PANTHER.db")
+# Append the new resource; never remove historical AnnotationHub entries.
+args <- commandArgs(trailingOnly = TRUE)
+package_dir <- if (length(args)) normalizePath(args[[1]]) else normalizePath(".")
+metadata_file <- file.path(package_dir, "inst", "extdata", "metadata.csv")
+meta <- read.csv(metadata_file, stringsAsFactors = FALSE, check.names = FALSE)
+if (!"Location_Prefix" %in% names(meta)) meta$Location_Prefix <- NA_character_
+resource <- "records/22729518/files/PANTHER.db.sqlite"
+if (resource %in% meta$RDataPath) stop("Resource is already recorded: ", resource)
+row <- meta[nrow(meta), , drop = FALSE]
+row$Description <- "PANTHER 19.0; pathways 3.6.8; UniProt-to-Entrez mapping snapshot 2023-09-20"
+row$BiocVersion <- "3.23"
+row$SourceUrl <- "https://data.pantherdb.org/ftp/hmm_classifications/19.0/,https://data.pantherdb.org/ftp/sequence_classifications/19.0/,https://data.pantherdb.org/ftp/pathway/3.6.8/,https://data.pantherdb.org/PANTHER19.0/ontology/,https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/idmapping/"
+row$SourceVersion <- "19.0"
+row$DataProvider <- "https://www.pantherdb.org"
+row$RDataDateAdded <- "2026-09-18"
+row$Location_Prefix <- "https://zenodo.org/"
+row$RDataPath <- resource
+write.csv(rbind(meta, row), metadata_file, row.names = FALSE)
